@@ -1,16 +1,27 @@
 import 'package:flutter/material.dart';
-import 'menu.dart';
+import 'package:camera/camera.dart';
+import 'camera.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  final cameras = await availableCameras();
+
+  final firstCamera = cameras.first;
+
   runApp(
-    const MaterialApp(
-      home: MainApp(),
+    MaterialApp(
+      home: MainApp(
+        // Pass the appropriate camera to the MainApp widget.
+        camera: firstCamera,
+      ),
     ),
   );
 }
 
 class MainApp extends StatelessWidget {
-  const MainApp({super.key});
+  final CameraDescription camera;
+  const MainApp({super.key, required this.camera});
 
   @override
   Widget build(BuildContext context) {
@@ -48,14 +59,25 @@ class MainApp extends StatelessWidget {
                         labelText: 'Password',
                       ),
                     ),
+                    SizedBox(height: 20,),
+                    TextField(
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        border: OutlineInputBorder(),
+                        labelText: 'Password',
+                      ),
+                    ),
                   ],
                 ),
               ),
               ElevatedButton(
                 onPressed: () {
+                  // When the user taps the button, navigate to the TakePictureScreen.
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => const Menu(),
+                      builder: (context) => TakePictureScreen(
+                        camera: camera,
+                      ),
                     ),
                   );
                 },

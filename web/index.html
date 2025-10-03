@@ -29,8 +29,18 @@
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>latihan2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+
+  <title>SafeMine</title>
   <link rel="manifest" href="manifest.json">
+
+  <style>
+      body {
+        font-family: 'Inter'; /* For Google Fonts */
+      }
+    </style>
 
   <script>
     // The value below is injected by flutter build, do not touch.
@@ -40,6 +50,11 @@
   <script src="flutter.js" defer></script>
 </head>
 <body>
+  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center;">
+    <img src="logoSafeMine1.png" style="padding-bottom: 20px;"/>
+    <p>Welcome to SafeMine</p>
+    <p>AI-powered hazard detection for mining safety</p>
+  </div>
   <script>
     window.addEventListener('load', function(ev) {
       // Download main.dart.js
