@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:ericsson/main.dart';
 import 'package:camera/camera.dart';
 
 // A screen that allows users to take a picture using a given camera.

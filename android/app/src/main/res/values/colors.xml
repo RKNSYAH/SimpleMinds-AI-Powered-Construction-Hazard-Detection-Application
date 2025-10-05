@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash screen background color -->
+    <color name="white">#FFFFFFFF</color>
+    <color name="black">#FF000000</color>
+
+    <!-- App brand colors (you can customize these) -->
+    <color name="primaryColor">#2196F3</color>
+    <color name="primaryDarkColor">#1976D2</color>
+    <color name="accentColor">#FF4081</color>
+
+    <!-- Optional: if you want a darker splash in dark mode -->
+    <color name="splash_background_light">#FFFFFFFF</color>
+    <color name="splash_background_dark">#FF121212</color>
+</resources>

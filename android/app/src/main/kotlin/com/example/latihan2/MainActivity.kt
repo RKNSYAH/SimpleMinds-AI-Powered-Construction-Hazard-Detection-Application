@@ -1,3 +1,4 @@
+package com.example.safemine
 import android.os.Build
 import android.os.Bundle
 import androidx.core.view.WindowCompat
