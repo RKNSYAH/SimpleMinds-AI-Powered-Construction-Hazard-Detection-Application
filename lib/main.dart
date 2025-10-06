@@ -1,5 +1,5 @@
 import 'dart:collection';
-
+import 'home.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'camera.dart';
@@ -26,26 +26,34 @@ typedef RoleEntry = DropdownMenuEntry<RoleLabel>;
 
 // DropdownMenuEntry labels and values for the first dropdown menu.
 enum RoleLabel {
-  blue('Engineer'),
-  pink('Supervisor'),
-  grey('Safety Officer');
+  engineer('Engineer'),
+  supervisor('Supervisor'),
+  safetyOfficer('Safety Officer');
 
   const RoleLabel(this.label);
   final String label;
 
-  static final List<RoleEntry> entries = UnmodifiableListView<RoleEntry>(
-    values.map<RoleEntry>(
-      (RoleLabel color) => RoleEntry(
-        value: color,
-        label: color.label,
-      ),
-    ),
-  );
+  static List<RoleEntry> get entries => UnmodifiableListView<RoleEntry>(
+        values.map<RoleEntry>(
+          (RoleLabel role) => RoleEntry(
+            value: role,
+            label: role.label,
+          ),
+        ),
+      );
 }
 
-class MainApp extends StatelessWidget {
+class MainApp extends StatefulWidget {
   final CameraDescription camera;
   const MainApp({super.key, required this.camera});
+
+  @override
+  State<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends State<MainApp> {
+  RoleLabel selectedRole = RoleLabel.engineer;
+  bool rememberMe = false;
 
   @override
   Widget build(BuildContext context) {
@@ -99,17 +107,37 @@ class MainApp extends StatelessWidget {
                                 fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                         ),
+                        const SizedBox(height: 20),
                         SizedBox(
                           width: fieldWidth,
-                          child: const TextField(
-                            decoration: InputDecoration(
-                              fillColor: Color.fromARGB(255, 238, 238, 238),
-                              filled: true,
-                              labelText: 'Enter your full name',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color.fromARGB(
+                                        74, 199, 210, 255), // Shadow color
+                                    blurRadius: 4, // Softness of the shadow
+                                    offset:
+                                        Offset(0, 4) // Position of the shadow
+                                    ),
+                              ],
+                              borderRadius: BorderRadius.circular(
+                                  10), // Match your input border
+                            ),
+                            child: const TextField(
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none),
+                                fillColor: Color.fromARGB(255, 243, 244, 246),
+                                filled: true,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.never,
+                                hintText: 'Enter your full name',
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 45),
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -118,16 +146,38 @@ class MainApp extends StatelessWidget {
                                 fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                         ),
+                        const SizedBox(height: 20),
                         SizedBox(
                           width: fieldWidth,
-                          child: const TextField(
-                            decoration: InputDecoration(
-                              border: OutlineInputBorder(),
-                              labelText: 'Enter your phone number or employee ID',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color.fromARGB(
+                                        74, 199, 210, 255), // Shadow color
+                                    blurRadius: 4, // Softness of the shadow
+                                    offset:
+                                        Offset(0, 4) // Position of the shadow
+                                    ),
+                              ],
+                              borderRadius: BorderRadius.circular(
+                                  10), // Match your input border
+                            ),
+                            child: const TextField(
+                              decoration: InputDecoration(
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none),
+                                fillColor: Color.fromARGB(255, 243, 244, 246),
+                                filled: true,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.never,
+                                hintText:
+                                    'Enter your phone number or employee ID',
+                              ),
                             ),
                           ),
                         ),
-                        const SizedBox(height: 20),
+                        const SizedBox(height: 45),
                         const Align(
                           alignment: Alignment.centerLeft,
                           child: Text(
@@ -136,24 +186,117 @@ class MainApp extends StatelessWidget {
                                 fontWeight: FontWeight.bold, fontSize: 15),
                           ),
                         ),
-                        SizedBox(
-                          width: fieldWidth,
-                          child: DropdownMenu(
-                            dropdownMenuEntries: RoleLabel.entries,
-                            width: fieldWidth,
-                          ),
-                        ),
                         const SizedBox(height: 20),
                         SizedBox(
                           width: fieldWidth,
-                          child: ElevatedButton(
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: const [
+                                BoxShadow(
+                                  color: Color.fromARGB(74, 199, 210, 255), // Shadow color
+                                  blurRadius: 4, // Softness of the shadow
+                                  offset: Offset(0, 4), // Position of the shadow
+                                ),
+                              ],
+                              borderRadius: BorderRadius.circular(10), // Match your input border
+                            ),
+                            child: DropdownMenu<RoleLabel>(
+                              width: fieldWidth,
+                              dropdownMenuEntries:
+                                  RoleLabel.entries.map((role) {
+                                return DropdownMenuEntry<RoleLabel>(
+                                  value: role.value,
+                                  label: role.label,
+                                  style: ButtonStyle(
+                                    minimumSize: WidgetStatePropertyAll(Size(fieldWidth, 40)),
+                                  ),
+                                );
+                              }).toList(),
+                              menuStyle: const MenuStyle(
+                                backgroundColor: WidgetStatePropertyAll(Colors.white),
+                                surfaceTintColor: WidgetStatePropertyAll(Colors.white),
+                                padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                                elevation: WidgetStatePropertyAll(2),
+                                shadowColor: WidgetStatePropertyAll(Color.fromARGB(74, 199, 210, 255)),
+                              ),
+                              initialSelection: selectedRole,
+                              onSelected: (RoleLabel? value) {
+                                if (value != null) {
+                                  setState(() {
+                                    selectedRole = value;
+                                  });
+                                }
+                              },
+                              inputDecorationTheme: const InputDecorationTheme(
+                                border: OutlineInputBorder(
+                                    borderSide: BorderSide.none),
+                                fillColor: Color.fromARGB(255, 243, 244, 246),
+                                filled: true,
+                                floatingLabelBehavior:
+                                    FloatingLabelBehavior.never,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            Transform.translate(
+                              offset: const Offset(-10, 0),
+                              child: Transform.scale(
+                                scale: 1.5,
+                                child: Checkbox(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(6.0),
+                                  ),
+                                  value: rememberMe, // Use the state variable
+                                  onChanged: (value) {
+                                    setState(() {
+                                      rememberMe = value!;
+                                    });
+                                  },
+                                  activeColor:
+                                      const Color.fromARGB(255, 11, 11, 11),
+                                ),
+                              ),
+                            ),
+                            GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  rememberMe = !rememberMe;
+                                });
+                              },
+                              child: const Text(
+                              'Remember me for quick login',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold, fontSize: 12),
+                            ),
+                          ),
+                            const Spacer(),
+                          ],
+                        ),
+                        const SizedBox(height: 50),
+                        SizedBox(
+                          width: fieldWidth,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              boxShadow: const [
+                                BoxShadow(
+                                    color: Color.fromARGB( 74, 199, 210, 255), // Shadow color
+                                    blurRadius: 4, // Softness of the shadow
+                                    offset: Offset(0, 4) // Position of the shadow
+                                    ),
+                              ],
+                              borderRadius: BorderRadius.circular(
+                                  5), // Match your button border
+                            ),
+                            child: ElevatedButton(
                             onPressed: () {
                               // When the user taps the button, navigate to the TakePictureScreen.
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => TakePictureScreen(
-                                    camera: camera,
-                                  ),
+                                  builder: (context) => const Menu()
                                 ),
                               );
                             },
@@ -168,6 +311,7 @@ class MainApp extends StatelessWidget {
                                     color: Colors.white)),
                           ),
                         )
+                      )
                       ],
                     );
                   },
@@ -184,6 +328,7 @@ class MainApp extends StatelessWidget {
 ThemeData _buildTheme() {
   final baseTheme = ThemeData.light();
   return baseTheme.copyWith(
+    scaffoldBackgroundColor: Colors.white,
     textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme),
     colorScheme: baseTheme.colorScheme.copyWith(
       primary: const Color.fromARGB(255, 37, 99, 235),
@@ -200,7 +345,11 @@ ThemeData _buildTheme() {
         foregroundColor: Colors.white,
       ),
     ),
+    shadowColor: const Color.fromARGB(74, 199, 210, 255),
     inputDecorationTheme: InputDecorationTheme(
+      hintStyle: const TextStyle(
+        color: Color.fromARGB(255, 190, 190, 190),
+      ),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10.0),
       ),
