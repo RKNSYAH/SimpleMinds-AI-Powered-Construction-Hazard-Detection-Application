@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'camera.dart';
@@ -15,6 +17,27 @@ void main() async {
       home: MainApp(
         // Pass the appropriate camera to the MainApp widget.
         camera: firstCamera,
+      ),
+    ),
+  );
+}
+
+typedef RoleEntry = DropdownMenuEntry<RoleLabel>;
+
+// DropdownMenuEntry labels and values for the first dropdown menu.
+enum RoleLabel {
+  blue('Engineer'),
+  pink('Supervisor'),
+  grey('Safety Officer');
+
+  const RoleLabel(this.label);
+  final String label;
+
+  static final List<RoleEntry> entries = UnmodifiableListView<RoleEntry>(
+    values.map<RoleEntry>(
+      (RoleLabel color) => RoleEntry(
+        value: color,
+        label: color.label,
       ),
     ),
   );
@@ -60,60 +83,96 @@ class MainApp extends StatelessWidget {
                   ),
                 ),
               ),
-              const Padding(
-                padding: EdgeInsets.all(25),
-                child: Column(
-                  children: [
-                    TextField(
-                      decoration: InputDecoration(
-                        fillColor: Color.fromARGB(255, 238, 238, 238),
-                        filled: true,
-                        labelText: 'Enter your full name',
-                      ),
-                    ),
-                    SizedBox(height: 20),
-                    TextField(
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Password',
-                      ),
-                    ),
-                    SizedBox(
-                      height: 20,
-                    ),
-                    TextField(
-                      decoration: InputDecoration(
-                        border: OutlineInputBorder(),
-                        labelText: 'Password',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              SizedBox(
-                height: 45,
-                width: 350,
-                child: ElevatedButton(
-                  onPressed: () {
-                    // When the user taps the button, navigate to the TakePictureScreen.
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (context) => TakePictureScreen(
-                          camera: camera,
+              Padding(
+                padding: const EdgeInsets.all(25),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    double fieldWidth = constraints.maxWidth;
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Full Name',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
                         ),
-                      ),
+                        SizedBox(
+                          width: fieldWidth,
+                          child: const TextField(
+                            decoration: InputDecoration(
+                              fillColor: Color.fromARGB(255, 238, 238, 238),
+                              filled: true,
+                              labelText: 'Enter your full name',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Phone Number / Employee ID',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                        SizedBox(
+                          width: fieldWidth,
+                          child: const TextField(
+                            decoration: InputDecoration(
+                              border: OutlineInputBorder(),
+                              labelText: 'Enter your phone number or employee ID',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        const Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Role',
+                            style: TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
+                        ),
+                        SizedBox(
+                          width: fieldWidth,
+                          child: DropdownMenu(
+                            dropdownMenuEntries: RoleLabel.entries,
+                            width: fieldWidth,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        SizedBox(
+                          width: fieldWidth,
+                          child: ElevatedButton(
+                            onPressed: () {
+                              // When the user taps the button, navigate to the TakePictureScreen.
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (context) => TakePictureScreen(
+                                    camera: camera,
+                                  ),
+                                ),
+                              );
+                            },
+                            style: ElevatedButton.styleFrom(
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(5.0),
+                              ),
+                            ),
+                            child: const Text('Sign In',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.white)),
+                          ),
+                        )
+                      ],
                     );
                   },
-                  style: ElevatedButton.styleFrom(
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(5.0),
-                    ),
-                  ),
-                  child: const Text('Sign In',
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold, color: Colors.white)),
                 ),
-              )
+              ),
             ],
           ),
         ),
