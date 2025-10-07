@@ -1,4 +1,6 @@
 import 'dart:collection';
+import 'package:ericsson/camacc.dart';
+
 import 'home.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
@@ -296,7 +298,7 @@ class _MainAppState extends State<MainApp> {
                               // When the user taps the button, navigate to the TakePictureScreen.
                               Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (context) => const Menu()
+                                  builder: (context) => const CamAcc()
                                 ),
                               );
                             },
