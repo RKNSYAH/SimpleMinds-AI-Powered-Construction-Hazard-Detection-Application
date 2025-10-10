@@ -1,5 +1,7 @@
+import 'package:ericsson/home.dart';
+import 'package:ericsson/theme.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class CamAcc extends StatelessWidget {
   const CamAcc({super.key});
@@ -8,7 +10,7 @@ class CamAcc extends StatelessWidget {
   Widget build(BuildContext context) {
     
     return MaterialApp(
-        theme: _buildTheme(),
+        theme: buildTheme(),
         home: Scaffold(
           body: Center(
             child: Column(
@@ -28,11 +30,11 @@ class CamAcc extends StatelessWidget {
                 const Text('Allow Camera Access'),
                 const SizedBox(height: 20,),
                 const SizedBox(
-                  width: 370, // or use MediaQuery for dynamic width
+                  width: 370, 
                   child: Text(
                     "This app requires your camera access to stream live video.",
                     softWrap: true,
-                    textAlign: TextAlign.center, // optional: centers the text
+                    textAlign: TextAlign.center,
                     style: TextStyle(fontSize: 15),
                   ),
                 ),
@@ -40,7 +42,7 @@ class CamAcc extends StatelessWidget {
                 LayoutBuilder(builder: (context, constraints) {
                   double fieldWidth = constraints.maxWidth * 0.6;
                   if (fieldWidth > 400) {
-                    fieldWidth = 400; // Cap the width at 400 pixels
+                    fieldWidth = 400; 
                   }
                   return Column(
                     children: [
@@ -50,22 +52,23 @@ class CamAcc extends StatelessWidget {
                             decoration: BoxDecoration(
                               boxShadow: const [
                                 BoxShadow(
-                                    color: Color.fromARGB( 74, 199, 210, 255), // Shadow color
-                                    blurRadius: 4, // Softness of the shadow
-                                    offset: Offset(0, 4) // Position of the shadow
+                                    color: Color.fromARGB( 74, 199, 210, 255),
+                                    blurRadius: 4,
+                                    offset: Offset(0, 4) 
                                     ),
                               ],
                               borderRadius: BorderRadius.circular(
-                                  5), // Match your button border
+                                  5), 
                             ),
                             child: ElevatedButton(
-                            onPressed: () {
-                              // When the user taps the button, navigate to the TakePictureScreen.
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const CamAcc()
-                                ),
-                              );
+                            onPressed: () async {
+                              if (await Permission.camera.request().isGranted) {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(
+                                    builder: (context) => const Menu()
+                                  ),
+                                );
+                              }
                             },
                             style: ElevatedButton.styleFrom(
                               shape: RoundedRectangleBorder(
@@ -90,45 +93,4 @@ class CamAcc extends StatelessWidget {
       )
     );
   }
-}
-
-ThemeData _buildTheme() {
-  final baseTheme = ThemeData.light();
-  return baseTheme.copyWith(
-    scaffoldBackgroundColor: Colors.white,
-    textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme),
-    colorScheme: baseTheme.colorScheme.copyWith(
-      primary: const Color.fromARGB(255, 37, 99, 235),
-      secondary: const Color.fromARGB(255, 37, 99, 235),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: const Color.fromARGB(255, 37, 99, 235),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromARGB(255, 37, 99, 235),
-        foregroundColor: Colors.white,
-      ),
-    ),
-    shadowColor: const Color.fromARGB(74, 199, 210, 255),
-    inputDecorationTheme: InputDecorationTheme(
-      hintStyle: const TextStyle(
-        color: Color.fromARGB(255, 190, 190, 190),
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        borderSide: const BorderSide(
-          color: Color.fromARGB(255, 37, 99, 235),
-        ),
-      ),
-      labelStyle: const TextStyle(
-        color: Color.fromARGB(255, 37, 99, 235),
-      ),
-    ),
-  );
 }

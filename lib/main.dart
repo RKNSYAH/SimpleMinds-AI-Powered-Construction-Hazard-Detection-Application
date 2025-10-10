@@ -1,11 +1,10 @@
 import 'dart:collection';
 import 'package:ericsson/camacc.dart';
-
-import 'home.dart';
+import 'package:ericsson/home.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'theme.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
-import 'camera.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -60,7 +59,7 @@ class _MainAppState extends State<MainApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      theme: _buildTheme(),
+      theme: buildTheme(),
       home: Scaffold(
         body: Center(
           child: Column(
@@ -195,12 +194,15 @@ class _MainAppState extends State<MainApp> {
                             decoration: BoxDecoration(
                               boxShadow: const [
                                 BoxShadow(
-                                  color: Color.fromARGB(74, 199, 210, 255), // Shadow color
+                                  color: Color.fromARGB(
+                                      74, 199, 210, 255), // Shadow color
                                   blurRadius: 4, // Softness of the shadow
-                                  offset: Offset(0, 4), // Position of the shadow
+                                  offset:
+                                      Offset(0, 4), // Position of the shadow
                                 ),
                               ],
-                              borderRadius: BorderRadius.circular(10), // Match your input border
+                              borderRadius: BorderRadius.circular(
+                                  10), // Match your input border
                             ),
                             child: DropdownMenu<RoleLabel>(
                               width: fieldWidth,
@@ -210,16 +212,21 @@ class _MainAppState extends State<MainApp> {
                                   value: role.value,
                                   label: role.label,
                                   style: ButtonStyle(
-                                    minimumSize: WidgetStatePropertyAll(Size(fieldWidth, 40)),
+                                    minimumSize: WidgetStatePropertyAll(
+                                        Size(fieldWidth, 40)),
                                   ),
                                 );
                               }).toList(),
                               menuStyle: const MenuStyle(
-                                backgroundColor: WidgetStatePropertyAll(Colors.white),
-                                surfaceTintColor: WidgetStatePropertyAll(Colors.white),
-                                padding: WidgetStatePropertyAll(EdgeInsets.zero),
+                                backgroundColor:
+                                    WidgetStatePropertyAll(Colors.white),
+                                surfaceTintColor:
+                                    WidgetStatePropertyAll(Colors.white),
+                                padding:
+                                    WidgetStatePropertyAll(EdgeInsets.zero),
                                 elevation: WidgetStatePropertyAll(2),
-                                shadowColor: WidgetStatePropertyAll(Color.fromARGB(74, 199, 210, 255)),
+                                shadowColor: WidgetStatePropertyAll(
+                                    Color.fromARGB(74, 199, 210, 255)),
                               ),
                               initialSelection: selectedRole,
                               onSelected: (RoleLabel? value) {
@@ -270,50 +277,58 @@ class _MainAppState extends State<MainApp> {
                                 });
                               },
                               child: const Text(
-                              'Remember me for quick login',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 12),
+                                'Remember me for quick login',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
                             ),
-                          ),
                             const Spacer(),
                           ],
                         ),
                         const SizedBox(height: 50),
                         SizedBox(
-                          width: fieldWidth,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              boxShadow: const [
-                                BoxShadow(
-                                    color: Color.fromARGB( 74, 199, 210, 255), // Shadow color
-                                    blurRadius: 4, // Softness of the shadow
-                                    offset: Offset(0, 4) // Position of the shadow
-                                    ),
-                              ],
-                              borderRadius: BorderRadius.circular(
-                                  5), // Match your button border
-                            ),
-                            child: ElevatedButton(
-                            onPressed: () {
-                              // When the user taps the button, navigate to the TakePictureScreen.
-                              Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (context) => const CamAcc()
-                                ),
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(5.0),
+                            width: fieldWidth,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: Color.fromARGB(
+                                          74, 199, 210, 255), // Shadow color
+                                      blurRadius: 4, // Softness of the shadow
+                                      offset:
+                                          Offset(0, 4) // Position of the shadow
+                                      ),
+                                ],
+                                borderRadius: BorderRadius.circular(
+                                    5), // Match your button border
                               ),
-                            ),
-                            child: const Text('Sign In',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white)),
-                          ),
-                        )
-                      )
+                              child: ElevatedButton(
+                                onPressed: () async {
+                                  var status = await Permission.camera.status;
+                                  if (!mounted) return;
+                                  if (status.isDenied) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                          builder: (context) => const CamAcc()),
+                                    );
+                                  } else if (status.isGranted) {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(
+                                          builder: (context) => Menu()),
+                                    );
+                                  }
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(5.0),
+                                  ),
+                                ),
+                                child: const Text('Sign In',
+                                    style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.white)),
+                              ),
+                            ))
                       ],
                     );
                   },
@@ -325,45 +340,4 @@ class _MainAppState extends State<MainApp> {
       ),
     );
   }
-}
-
-ThemeData _buildTheme() {
-  final baseTheme = ThemeData.light();
-  return baseTheme.copyWith(
-    scaffoldBackgroundColor: Colors.white,
-    textTheme: GoogleFonts.interTextTheme(baseTheme.textTheme),
-    colorScheme: baseTheme.colorScheme.copyWith(
-      primary: const Color.fromARGB(255, 37, 99, 235),
-      secondary: const Color.fromARGB(255, 37, 99, 235),
-    ),
-    textButtonTheme: TextButtonThemeData(
-      style: TextButton.styleFrom(
-        foregroundColor: const Color.fromARGB(255, 37, 99, 235),
-      ),
-    ),
-    elevatedButtonTheme: ElevatedButtonThemeData(
-      style: ElevatedButton.styleFrom(
-        backgroundColor: const Color.fromARGB(255, 37, 99, 235),
-        foregroundColor: Colors.white,
-      ),
-    ),
-    shadowColor: const Color.fromARGB(74, 199, 210, 255),
-    inputDecorationTheme: InputDecorationTheme(
-      hintStyle: const TextStyle(
-        color: Color.fromARGB(255, 190, 190, 190),
-      ),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(10.0),
-        borderSide: const BorderSide(
-          color: Color.fromARGB(255, 37, 99, 235),
-        ),
-      ),
-      labelStyle: const TextStyle(
-        color: Color.fromARGB(255, 37, 99, 235),
-      ),
-    ),
-  );
 }

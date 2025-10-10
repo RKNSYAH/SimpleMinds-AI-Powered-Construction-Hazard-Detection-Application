@@ -14,6 +14,9 @@ dependencies:
   path: ^1.9.1
   flutter_native_splash: ^2.4.6
   google_fonts: ^6.3.2
+  permission_handler: ^12.0.1
+  battery_plus: ^7.0.0
+  intl: ^0.20.2
 
 dev_dependencies:
   flutter_test:
@@ -25,6 +28,8 @@ flutter:
   assets:
     - assets/images/helmet_ic.png
     - assets/images/camera_ic.png
+    - assets/images/green_circ.png
+    - assets/images/vcam_ic.png
 
 flutter_native_splash:
   # This package generates native code to customize Flutter's default white native splash screen
