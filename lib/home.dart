@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:camera/camera.dart';
 import 'package:ericsson/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:battery_plus/battery_plus.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
+import 'package:tflite_flutter/tflite_flutter.dart';
+import 'package:image/image.dart' as img;
 
 class IncidentList extends StatelessWidget {
   final String warnName;
@@ -64,26 +69,149 @@ class Menu extends StatefulWidget {
 class _MenuState extends State<Menu> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
+  Interpreter? interpreter;
+  List<List<dynamic>> detections = [];
+
+  final List<String> labels = [
+  "crack",
+  "cracks",
+  "mold",
+  "peeling_paint",
+  "stairstep_crack",
+  "water_seepage",
+];
+
 
   @override
   void initState() {
     super.initState();
+    loadModel();
     _setupCamera();
   }
 
+  Future<void> loadModel() async {
+  interpreter = await Interpreter.fromAsset('assets/model/best_optimized.tflite');
+}
+
   Future<void> _setupCamera() async {
     try {
+      print("Running inference...");
       final cameras = await availableCameras();
       if (cameras.isNotEmpty) {
         _controller = CameraController(
           cameras.first,
           ResolutionPreset.medium,
+          enableAudio: false
         );
         _initializeControllerFuture = _controller!.initialize();
+        await _initializeControllerFuture;
+        _controller!.startImageStream((CameraImage image) {
+          print("Camera image received");
+          if (interpreter != null) runInference(image);
+        });
         setState(() {});
       }
     } catch (e) {
       // Handle camera error
+    }
+  }
+
+  Float32List convertYUV420ToFloat32(CameraImage image, int targetWidth, int targetHeight) {
+  try {
+    final int width = image.width;
+    final int height = image.height;
+    final int uvRowStride = image.planes[1].bytesPerRow;
+    final int uvPixelStride = image.planes[1].bytesPerPixel ?? 1;
+
+    // Step 1: Convert YUV → RGB image using img package
+    final img.Image rgbImage = img.Image(width: width, height: height);
+
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        final int uvIndex = uvPixelStride * (x ~/ 2) + uvRowStride * (y ~/ 2);
+        final int index = y * width + x;
+
+        final int yp = image.planes[0].bytes[index].toUnsigned(8);
+        final int up = image.planes[1].bytes[uvIndex].toUnsigned(8);
+        final int vp = image.planes[2].bytes[uvIndex].toUnsigned(8);
+
+        double r = yp + 1.402 * (vp - 128);
+        double g = yp - 0.344136 * (up - 128) - 0.714136 * (vp - 128);
+        double b = yp + 1.772 * (up - 128);
+
+        rgbImage.setPixelRgba(
+          x,
+          y,
+          r.clamp(0, 255).toInt(),
+          g.clamp(0, 255).toInt(),
+          b.clamp(0, 255).toInt(),
+          255,
+        );
+      }
+    }
+
+    final resized = img.copyResize(rgbImage, width: targetWidth, height: targetHeight);
+
+    final Float32List floatInput = Float32List(1 * targetWidth * targetHeight * 3);
+    int index = 0;
+    for (int c = 0; c < 3; c++) {
+      for (int y = 0; y < targetHeight; y++) {
+        for (int x = 0; x < targetWidth; x++) {
+          final pixel = resized.getPixel(x, y);
+          double value;
+          if (c == 0) {
+            value = pixel.b.toDouble(); // Blue
+          } else if (c == 1) {
+            value = pixel.g / 255.0; // Green
+          } else {
+            value = pixel.r / 255.0; // Red
+          }
+          floatInput[index++] = value;
+        }
+      }
+    }
+
+  print("Sample pixel: R=${resized.getPixel(100,100).r}");
+
+    return floatInput;
+  } catch (e) {
+    print(">>>>>>>>>>>> ERROR: $e");
+    throw Exception("Error converting image");
+  }
+}
+
+  Future<void> runInference(CameraImage image) async {
+
+    final input = convertYUV420ToFloat32(image, 736, 736);
+
+    var output = List.filled(1 * 300 * 6, 0.0).reshape([1, 300, 6]);
+    interpreter!.run(input.reshape([1, 3, 736, 736]), output);
+
+    setState(() {
+    detections = (output[0] as List)
+        .map((e) => (e as List).map((v) => v.toDouble()).toList())
+        .where((box) => box[4] > 0.5) // confidence threshold
+        .toList();
+  });
+
+
+    if (detections.isEmpty) {
+    print("No detections.");
+    } else {
+      for (var det in detections) {
+  if (det[4] > 0.25) { // confidence threshold
+    int rawClass = det[5].toInt();
+    int cls = rawClass % labels.length;
+    String label = labels[cls];
+
+    print(
+      "Detected $label (class $rawClass → mapped $cls) "
+      "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
+      "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
+    );
+  }
+}
+
     }
   }
 
