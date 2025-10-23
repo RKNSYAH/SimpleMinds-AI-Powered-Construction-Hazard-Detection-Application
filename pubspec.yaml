@@ -31,7 +31,6 @@ flutter:
     - assets/images/camera_ic.png
     - assets/images/green_circ.png
     - assets/images/vcam_ic.png
-    - assets/model/best_optimized.tflite
     - assets/images/2.jpg
 
 flutter_native_splash:
