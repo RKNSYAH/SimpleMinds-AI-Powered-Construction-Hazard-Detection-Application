@@ -1,6 +1,6 @@
-# SafeMine: AI-Powered Construction Hazard Detection Application
+# SimpleMinds: AI-Powered Construction Hazard Detection Application
 
-**SafeMine** is an AI-powered mobile application designed to enhance safety on construction sites by detecting potential hazards in real-time. Built using **Flutter**, the app leverages on-device computer vision models to identify risks, helping construction workers and managers prevent accidents and ensure a safer working environment.  
+**SimpleMinds** is an AI-powered mobile application designed to enhance safety on construction sites by detecting potential hazards in real-time. Built using **Flutter**, the app leverages on-device computer vision models to identify risks, helping construction workers and managers prevent accidents and ensure a safer working environment.  
 
 ## Key Features
 
@@ -28,4 +28,4 @@
 
 ---
 
-**SafeMine** aims to revolutionize construction site safety by combining modern AI technology with easy-to-use mobile tools, making safety monitoring faster, smarter, and more accessible.
+**SimpleMinds** aims to revolutionize construction site safety by combining modern AI technology with easy-to-use mobile tools, making safety monitoring faster, smarter, and more accessible.
