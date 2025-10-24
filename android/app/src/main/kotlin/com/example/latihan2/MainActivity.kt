@@ -37,7 +37,7 @@ class MainActivity : FlutterActivity() {
                     val model = FileUtil.loadMappedFile(this, "ConstructionHazardV3.tflite") 
                     
                     interpreter = Interpreter(model, options)
-                    result.success("Model loaded with HexagonDelegate. ✅")
+                    result.success("Model loaded with HexagonDelegate.")
                 } catch (e: Exception) {
                     // Fallback to CPU if Hexagon fails
                     try {
