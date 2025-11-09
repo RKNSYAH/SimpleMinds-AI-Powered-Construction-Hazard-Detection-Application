@@ -1,6 +1,7 @@
-import 'dart:io';
-import 'dart:typed_data';
+import 'dart:ui';
+
 import 'package:camera/camera.dart';
+import 'package:ericsson/camera.dart';
 import 'package:ericsson/tflite_service.dart';
 import 'package:ericsson/theme.dart';
 import 'package:flutter/foundation.dart';
@@ -10,6 +11,8 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 import 'dart:ui' as ui;
+import 'package:audioplayers/audioplayers.dart';
+import 'package:vibration/vibration.dart';
 
 class IsolateData {
   final List<Uint8List> planes;
@@ -27,10 +30,7 @@ class IsolateData {
 
 Float32List _preprocessInIsolate(IsolateData isolateData) {
   return convertYUV420ToFloat32(
-    isolateData, 
-    isolateData.targetWidth, 
-    isolateData.targetHeight
-  );
+      isolateData, isolateData.targetWidth, isolateData.targetHeight);
 }
 
 // Float32List convertYUV420ToFloat32(
@@ -114,9 +114,8 @@ Float32List _preprocessInIsolate(IsolateData isolateData) {
 //   return floatInput;
 // }
 
-
-
-Float32List convertYUV420ToFloat32(IsolateData isolateData, int targetWidth, int targetHeight) {
+Float32List convertYUV420ToFloat32(
+    IsolateData isolateData, int targetWidth, int targetHeight) {
   final int width = isolateData.width;
   final int height = isolateData.height;
   final int uvRowStride = isolateData.uvRowStride;
@@ -124,7 +123,7 @@ Float32List convertYUV420ToFloat32(IsolateData isolateData, int targetWidth, int
   final int yRowStride = isolateData.yRowStride;
   final planes = isolateData.planes;
 
-  var img2 = img.Image(width: width, height: height); 
+  var img2 = img.Image(width: width, height: height);
 
   for (int y = 0; y < height; y++) {
     for (int x = 0; x < width; x++) {
@@ -135,7 +134,7 @@ Float32List convertYUV420ToFloat32(IsolateData isolateData, int targetWidth, int
       final yp = planes[0][index];
       final up = planes[1][uvIndex];
       final vp = planes[2][uvIndex];
-      
+
       int r = (yp + vp * 1436 / 1024 - 179).round().clamp(0, 255);
       int g = (yp - up * 46549 / 131072 + 44 - vp * 93604 / 131072 + 91)
           .round()
@@ -148,8 +147,10 @@ Float32List convertYUV420ToFloat32(IsolateData isolateData, int targetWidth, int
   final rotated = img.copyRotate(img2, angle: 90);
   final resized = img.copyResizeCropSquare(rotated, size: 640);
 
-  final Float32List floatInput = Float32List(1 * 3 * targetHeight * targetWidth);
-  int index = 0;;
+  final Float32List floatInput =
+      Float32List(1 * 3 * targetHeight * targetWidth);
+  int index = 0;
+  ;
   for (int c = 0; c < 3; c++) {
     for (int y = 0; y < targetHeight; y++) {
       for (int x = 0; x < targetWidth; x++) {
@@ -220,6 +221,18 @@ class IncidentList extends StatelessWidget {
   }
 }
 
+class DetectionLog {
+  final String label;
+  final DateTime timestamp;
+  final double confidence;
+
+  DetectionLog({
+    required this.label,
+    required this.timestamp,
+    required this.confidence,
+  });
+}
+
 class DetectionPainter extends CustomPainter {
   final List<String> labels = [
     "crack",
@@ -285,7 +298,6 @@ class DetectionPainter extends CustomPainter {
       oldDelegate.detections != detections;
 }
 
-
 class Menu extends StatefulWidget {
   const Menu({super.key});
 
@@ -296,9 +308,15 @@ class Menu extends StatefulWidget {
 class _MenuState extends State<Menu> {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
-  List<List<double>> detections = [];
+
+  List<List<double>> _currentDetections = [];
+  List<DetectionLog> _detectionLog = [];
+
   final TFLiteService _tfliteService = TFLiteService();
   bool _isModelLoaded = false;
+
+  final Map<String, DateTime> _lastAlertTimes = {};
+  final Duration alertCooldown = const Duration(seconds: 5);
 
   final List<String> labels = [
     "crack",
@@ -317,15 +335,15 @@ class _MenuState extends State<Menu> {
   }
 
   Future<String> loadModel() async {
-  String result = await _tfliteService.loadModel();
-  if (result.contains("Model loaded")) {
-    setState(() {
-      _isModelLoaded = true;
-    });
+    String result = await _tfliteService.loadModel();
+    if (result.contains("Model loaded")) {
+      setState(() {
+        _isModelLoaded = true;
+      });
+    }
+    print(result);
+    return result;
   }
-  print(result);
-  return result;
-}
 
   int lastInferenceTime = 0;
   bool isProcessing = false;
@@ -353,41 +371,79 @@ class _MenuState extends State<Menu> {
         640,
       );
 
-      final Float32List input = await compute(_preprocessInIsolate, isolateData);
+      //   final Float32List input =
+      //       await compute(_preprocessInIsolate, isolateData);
 
-      final List<List<double>>? output = await _tfliteService.runInference(input.buffer);
+      //   final List<List<double>>? output =
+      //       await _tfliteService.runInference(input.buffer);
 
-      if (output == null) {
-        print("Inference failed or returned null.");
-        return;
-      }
+      //   if (output == null) {
+      //     print("Inference failed or returned null.");
+      //     return;
+      //   }
 
-      for(var box in output){
-        print(box);
-      }
+      //   for (var box in output) {
+      //     print(box);
+      //   }
 
-      setState(() {
-        detections = output
-            .where((box) => box[4] > 0.25)
-            .toList();
-      });
+      //   var newDetections = output.where((box) => box[4] > 0.25).toList();
 
-      if (detections.isEmpty) {
-        print("No detections.");
-      } else {
-        for (var det in detections) {
-          if (det[4] > 0.25) {
-            int rawClass = det[5].toInt();
-            int cls = rawClass % labels.length;
-            String label = labels[cls];
-            print(
-              "Detected $label (class $rawClass → mapped $cls) "
-              "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
-              "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
-            );
-          }
-        }
-      }
+      //   List<DetectionLog> newLogs = [];
+
+      //   final currentTime = DateTime.now();
+
+      //   setState(() {
+      //     newDetections = output.where((box) => box[4] > 0.25).toList();
+      //   });
+
+      //   if (newDetections.isEmpty) {
+      //     print("No detections.");
+      //   } else {
+      //     for (var det in newDetections) {
+      //       if (det[4] > 0.25) {
+      //         int rawClass = det[5].toInt();
+      //         int cls = rawClass % labels.length;
+      //         String label = labels[cls];
+      //         double confidence = det[4];
+
+      //         final DateTime? lastTime = _lastAlertTimes[label];
+
+      //         if(lastTime != null && currentTime.difference(lastTime) < alertCooldown) {
+      //           continue;
+      //         }
+      //         _lastAlertTimes[label] = currentTime;
+
+      //         newLogs.add(DetectionLog(
+      //           label: label,
+      //           timestamp: DateTime.now(),
+      //           confidence: confidence,
+      //         ));
+
+      //         final player = AudioPlayer();
+      //         player.play(AssetSource('sounds/alert.wav'));
+      //         Vibration.vibrate(duration: 500);
+
+      //         print(
+      //           "Detected $label (class $rawClass → mapped $cls) "
+      //           "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
+      //           "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
+      //         );
+      //       }
+      //     }
+      //   }
+
+      //   setState(() {
+      //     _currentDetections = newDetections;
+
+      //     if (newLogs.isNotEmpty) {
+      //       _detectionLog.insertAll(0, newLogs);
+
+      //       if (_detectionLog.length > 50) {
+      //         _detectionLog = _detectionLog.sublist(0, 50);
+      //       }
+      //     }
+      //   }
+      // );
     } catch (e) {
       print("Error during processing: $e");
     } finally {
@@ -703,64 +759,80 @@ class _MenuState extends State<Menu> {
                                 ),
                                 Expanded(
                                   child: Padding(
-                                    padding:
-                                        const EdgeInsets.only(bottom: 16.0),
+                                    padding: const EdgeInsets.fromLTRB(
+                                        16.0, 0, 16.0, 16.0),
                                     child: Center(
-                                      child: (_controller != null &&
-                                              _initializeControllerFuture !=
-                                                  null)
-                                          ? FutureBuilder<void>(
-                                              future:
-                                                  _initializeControllerFuture,
-                                              builder: (context, snapshot) {
-                                                if (snapshot.connectionState ==
-                                                    ConnectionState.done) {
-                                                  return SizedBox(
-                                                    width: screenWidth,
-                                                    height:
-                                                        screenWidth, // square
-                                                    child: ClipRRect(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              13),
-                                                      child: Stack(
-                                                        fit: StackFit.expand,
-                                                        children: [
-                                                          CameraPreview(
-                                                              _controller!),
-                                                          if (detections
-                                                              .isNotEmpty)
-                                                            CustomPaint(
-                                                              painter:
-                                                                  DetectionPainter(
-                                                                detections:
-                                                                    detections,
-                                                                scale:
-                                                                    screenWidth /
-                                                                        640,
-                                                                flipHorizontally:
-                                                                    false, // true for front camera
-                                                              ),
-                                                            ),
-                                                        ],
-                                                      ),
-                                                    ),
-                                                  );
-                                                } else {
-                                                  return const Center(
-                                                      child:
-                                                          CircularProgressIndicator());
-                                                }
-                                              },
-                                            )
-                                          : Center(
-                                              child: Text(
-                                                'Camera not available',
-                                                style: Theme.of(context)
-                                                    .textTheme
-                                                    .bodySmall,
+                                      child: Center(
+                                        child: ClipRRect(
+                                          borderRadius:
+                                              BorderRadius.circular(10),
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              ImageFiltered(
+                                                imageFilter: ImageFilter.blur(
+                                                  sigmaX: 10.0,
+                                                  sigmaY: 10.0,
+                                                ),
+                                                child: Image.asset(
+                                                  'assets/images/2.jpg',
+                                                  fit: BoxFit.cover,
+                                                ),
                                               ),
-                                            ),
+                                              Container(
+                                                color: Colors.black
+                                                    .withValues(alpha: 0.2),
+                                              ),
+                                              Center(
+                                                child: ElevatedButton(
+                                                  style:
+                                                      ElevatedButton.styleFrom(
+                                                    backgroundColor:
+                                                        Colors.white,
+                                                    foregroundColor:
+                                                        Colors.black,
+                                                    elevation: 5,
+                                                  ),
+                                                  onPressed: () {
+                                                    final cameraDescription =
+                                                        _controller
+                                                            ?.description;
+
+                                                    // 2. Check if it's actually available.
+                                                    if (cameraDescription !=
+                                                            null &&
+                                                        context.mounted) {
+                                                      // 3. Only navigate if it's not null.
+                                                      Navigator.of(context)
+                                                          .push(
+                                                              MaterialPageRoute(
+                                                        builder: (context) =>
+                                                            TakePictureScreen(
+                                                          camera:
+                                                              cameraDescription,
+                                                        ),
+                                                      ));
+                                                    } else {
+                                                      // 4. Optionally, tell the user the camera isn't ready.
+                                                      print(
+                                                          "Camera controller or description is null. Cannot navigate.");
+                                                      ScaffoldMessenger.of(
+                                                              context)
+                                                          .showSnackBar(
+                                                        const SnackBar(
+                                                            content: Text(
+                                                                "Camera not available or still initializing.")),
+                                                      );
+                                                    }
+                                                  },
+                                                  child: const Text(
+                                                      "Go to Live View"),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -834,7 +906,7 @@ class _MenuState extends State<Menu> {
                                               ),
                                             ),
                                             onPressed: () {
-                                              // TODO: Add your navigation or action here
+                                              // TODO: Add navigation or action here
                                             },
                                             child: Text(
                                               'View All',
@@ -853,27 +925,26 @@ class _MenuState extends State<Menu> {
                                   ),
                                 ],
                               ),
-                              const Column(children: [
-                                Padding(
-                                  padding:
-                                      EdgeInsets.symmetric(horizontal: 16.0),
-                                  child: Column(
-                                    children: [
-                                      IncidentList(
-                                          warnName: 'Corrosion Detected ',
-                                          timeStamp: 1760033682),
-                                      SizedBox(height: 10),
-                                      IncidentList(
-                                          warnName: 'Crack (Wall) Detected ',
-                                          timeStamp: 1760023682),
-                                      SizedBox(height: 10),
-                                      IncidentList(
-                                          warnName: 'Crack (Floor) Detected ',
-                                          timeStamp: 1760011682),
-                                    ],
-                                  ),
-                                )
-                              ])
+                              Expanded(
+                                child: ListView.builder(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 16.0),
+                                  itemCount: _detectionLog.length,
+                                  itemBuilder: (context, index) {
+                                    final log = _detectionLog[index];
+                                    return Padding(
+                                      padding:
+                                          const EdgeInsets.only(bottom: 10.0),
+                                      child: IncidentList(
+                                        warnName: log.label,
+                                        timeStamp: log.timestamp
+                                                .millisecondsSinceEpoch ~/
+                                            1000,
+                                      ),
+                                    );
+                                  },
+                                ),
+                              )
                             ])),
                       ],
                     );

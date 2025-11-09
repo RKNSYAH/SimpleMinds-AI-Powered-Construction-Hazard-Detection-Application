@@ -18,6 +18,8 @@ dependencies:
   battery_plus: ^7.0.0
   intl: ^0.20.2
   tflite_flutter: ^0.11.0
+  audioplayers: ^6.5.1
+  vibration: ^3.1.4
 
 dev_dependencies:
   flutter_test:
@@ -32,6 +34,7 @@ flutter:
     - assets/images/green_circ.png
     - assets/images/vcam_ic.png
     - assets/images/2.jpg
+    - assets/sounds/alert.wav
 
 flutter_native_splash:
   # This package generates native code to customize Flutter's default white native splash screen
