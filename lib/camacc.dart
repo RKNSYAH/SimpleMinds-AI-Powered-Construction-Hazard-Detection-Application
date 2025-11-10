@@ -63,11 +63,13 @@ class CamAcc extends StatelessWidget {
                             child: ElevatedButton(
                             onPressed: () async {
                               if (await Permission.camera.request().isGranted) {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(
-                                    builder: (context) => const Menu()
-                                  ),
+                                Navigator.of(context).pushAndRemoveUntil(
+                                  MaterialPageRoute(builder: (context) => const Menu()),
+                                  (route) => false,
                                 );
+                              }
+                              else if (await Permission.camera.isPermanentlyDenied) {
+                                openAppSettings();
                               }
                             },
                             style: ElevatedButton.styleFrom(

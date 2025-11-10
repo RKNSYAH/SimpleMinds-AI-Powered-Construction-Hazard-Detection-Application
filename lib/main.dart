@@ -303,10 +303,10 @@ class _MainAppState extends State<MainApp> {
                                           builder: (context) => const CamAcc()),
                                     );
                                   } else if (status.isGranted) {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                          builder: (context) => Menu()),
-                                    );
+                                    Navigator.of(context).pushAndRemoveUntil(
+                                    MaterialPageRoute(builder: (context) => const Menu()),
+                                    (route) => false,
+                                  );
                                   }
                                 },
                                 style: ElevatedButton.styleFrom(
