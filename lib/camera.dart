@@ -64,12 +64,15 @@ class TakePictureScreenState extends State<TakePictureScreen> {
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.done) {
-            final previewSize = _controller.value.previewSize!;
+            double screenWidth = MediaQuery.of(context).size.width;
+            double screenHeight = MediaQuery.of(context).size.height;
             return SizedBox.expand(
               child: FittedBox(
                 fit: BoxFit.cover,
                 alignment: Alignment.center,
                 child: SizedBox(
+                  width: screenWidth,
+                  height: screenHeight,
                   // swap width/height to account for sensor orientation so the preview fills correctly in landscape
                   child: CameraPreview(_controller),
                 ),
