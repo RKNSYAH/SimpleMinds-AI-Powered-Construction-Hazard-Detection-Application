@@ -142,7 +142,7 @@ class _MainAppState extends State<MainApp> {
                           const Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              'Phone Number / Employee ID',
+                              'Employee ID',
                               style: TextStyle(
                                   fontWeight: FontWeight.bold, fontSize: 15),
                             ),
@@ -170,7 +170,35 @@ class _MainAppState extends State<MainApp> {
                                   floatingLabelBehavior:
                                       FloatingLabelBehavior.never,
                                   hintText:
-                                      'Enter your phone number or employee ID',
+                                      'Enter your employee ID',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: fieldWidth,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                boxShadow: const [
+                                  BoxShadow(
+                                      color: Color.fromARGB(
+                                          74, 199, 210, 255),
+                                      blurRadius: 4,
+                                      offset: Offset(0, 4)),
+                                ],
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const TextField(
+                                decoration: InputDecoration(
+                                  border: OutlineInputBorder(
+                                      borderSide: BorderSide.none),
+                                  fillColor: Color.fromARGB(255, 243, 244, 246),
+                                  filled: true,
+                                  floatingLabelBehavior:
+                                      FloatingLabelBehavior.never,
+                                  hintText:
+                                      'Enter Supervisor ID',
                                 ),
                               ),
                             ),
