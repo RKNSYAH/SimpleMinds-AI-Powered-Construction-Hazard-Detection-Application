@@ -348,6 +348,63 @@ class _MenuState extends State<Menu> {
   int lastInferenceTime = 0;
   bool isProcessing = false;
 
+  Future<void> mapDetections(List<List<double>> newDetections) async {
+    final currentTime = DateTime.now();
+    List<DetectionLog> newLogs = [];
+    try {
+        if (newDetections.isEmpty) {
+          print("No detections.");
+        } else {
+          for (var det in newDetections) {
+            if (det[4] > 0.25) {
+              int rawClass = det[5].toInt();
+              int cls = rawClass % labels.length;
+              String label = labels[cls];
+              double confidence = det[4];
+
+              final DateTime? lastTime = _lastAlertTimes[label];
+
+              if(lastTime != null && currentTime.difference(lastTime) < alertCooldown) {
+                continue;
+              }
+              _lastAlertTimes[label] = currentTime;
+
+              newLogs.add(DetectionLog(
+                label: label,
+                timestamp: DateTime.now(),
+                confidence: confidence,
+              ));
+
+              final player = AudioPlayer();
+              player.play(AssetSource('sounds/alert.wav'));
+              Vibration.vibrate(duration: 500);
+
+              print(
+                "Detected $label (class $rawClass → mapped $cls) "
+                "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
+                "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
+              );
+            }
+          }
+        }
+
+        setState(() {
+          _currentDetections = newDetections;
+
+          if (newLogs.isNotEmpty) {
+            _detectionLog.insertAll(0, newLogs);
+
+            if (_detectionLog.length > 50) {
+              _detectionLog = _detectionLog.sublist(0, 50);
+            }
+          }
+        }
+      );
+    } catch (e) {
+      print("Error mapping detections: $e");
+    }
+  }
+
   Future<void> processCameraImage(CameraImage image) async {
     const int throttleMs = 400;
     final int now = DateTime.now().millisecondsSinceEpoch;
@@ -371,8 +428,8 @@ class _MenuState extends State<Menu> {
         640,
       );
 
-      //   final Float32List input =
-      //       await compute(_preprocessInIsolate, isolateData);
+        final Float32List input =
+            await compute(_preprocessInIsolate, isolateData);
 
       //   final List<List<double>>? output =
       //       await _tfliteService.runInference(input.buffer);
@@ -798,32 +855,21 @@ class _MenuState extends State<Menu> {
                                                         _controller
                                                             ?.description;
 
-                                                    // 2. Check if it's actually available.
-                                                    if (cameraDescription !=
-                                                            null &&
-                                                        context.mounted) {
-                                                      // 3. Only navigate if it's not null.
-                                                      Navigator.of(context)
-                                                          .push(
-                                                              MaterialPageRoute(
-                                                        builder: (context) =>
-                                                            TakePictureScreen(
-                                                          camera:
-                                                              cameraDescription,
-                                                        ),
-                                                      ));
-                                                    } else {
-                                                      // 4. Optionally, tell the user the camera isn't ready.
-                                                      print(
-                                                          "Camera controller or description is null. Cannot navigate.");
-                                                      ScaffoldMessenger.of(
-                                                              context)
-                                                          .showSnackBar(
-                                                        const SnackBar(
-                                                            content: Text(
-                                                                "Camera not available or still initializing.")),
-                                                      );
-                                                    }
+                                                    if (cameraDescription != null &&
+                                                    context.mounted) {
+                                                  Navigator.of(context).push(
+                                                    MaterialPageRoute(
+                                                      builder: (context) =>
+                                                          TakePictureScreen(
+                                                        camera: cameraDescription,
+                                                        onDetections: (detections) {
+                                                          mapDetections(detections);
+                                                        },
+                                                      ),
+                                                    ),
+                                                  );
+                                                } else {
+                                                }
                                                   },
                                                   child: const Text(
                                                       "Go to Live View"),
