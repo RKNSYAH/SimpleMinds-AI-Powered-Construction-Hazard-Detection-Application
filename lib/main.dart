@@ -5,6 +5,8 @@ import 'package:permission_handler/permission_handler.dart';
 import 'theme.dart';
 import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -53,6 +55,81 @@ class _MainAppState extends State<MainApp> {
   RoleLabel selectedRole = RoleLabel.engineer;
   bool rememberMe = false;
 
+  final TextEditingController fullNameController = TextEditingController();
+  final TextEditingController empIdController = TextEditingController();
+  final TextEditingController supervisorController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
+  @override
+  void dispose() {
+    fullNameController.dispose();
+    empIdController.dispose();
+    supervisorController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submitSignIn() async {
+    final fullName = fullNameController.text.trim();
+    final employeeId = empIdController.text.trim();
+    final supervisorId = supervisorController.text.trim();
+    final role = selectedRole.label;
+    final remember = rememberMe;
+
+    if (fullName.isEmpty || employeeId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter name and employee ID')),
+      );
+      return;
+    }
+
+    final payload = {
+      'fullName': fullName,
+      'employeeId': employeeId,
+      'supervisorId': supervisorId,
+      'role': role,
+      'remember': remember,
+    };
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      final uri = Uri.parse('https://safemine-backend.netlify.app/api/');
+      final resp = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode(payload),
+      );
+
+      if (!mounted) return;
+
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        // success - proceed to app
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const Menu()),
+          (route) => false,
+        );
+      } else {
+        final msg = resp.body.isNotEmpty ? resp.body : 'Server error';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sign in failed: $msg')),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Network error: $e')),
+      );
+    } finally {
+      if (!mounted) return;
+      setState(() => _isSubmitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -62,7 +139,7 @@ class _MainAppState extends State<MainApp> {
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
             child: Column(
-              mainAxisSize: MainAxisSize.min, // avoid IntrinsicHeight/ConstrainedBox
+              mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
                 const SizedBox(height: 10),
@@ -125,8 +202,9 @@ class _MainAppState extends State<MainApp> {
                                 ],
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const TextField(
-                                decoration: InputDecoration(
+                              child: TextField( // removed const and added controller
+                                controller: fullNameController,
+                                decoration: const InputDecoration(
                                   border: OutlineInputBorder(
                                       borderSide: BorderSide.none),
                                   fillColor: Color.fromARGB(255, 243, 244, 246),
@@ -161,8 +239,9 @@ class _MainAppState extends State<MainApp> {
                                 ],
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const TextField(
-                                decoration: InputDecoration(
+                              child: TextField( // removed const and added controller
+                                controller: empIdController,
+                                decoration: const InputDecoration(
                                   border: OutlineInputBorder(
                                       borderSide: BorderSide.none),
                                   fillColor: Color.fromARGB(255, 243, 244, 246),
@@ -189,8 +268,9 @@ class _MainAppState extends State<MainApp> {
                                 ],
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const TextField(
-                                decoration: InputDecoration(
+                              child: TextField( // removed const and added controller
+                                controller: supervisorController,
+                                decoration: const InputDecoration(
                                   border: OutlineInputBorder(
                                       borderSide: BorderSide.none),
                                   fillColor: Color.fromARGB(255, 243, 244, 246),
@@ -322,7 +402,8 @@ class _MainAppState extends State<MainApp> {
                                 borderRadius: BorderRadius.circular(5),
                               ),
                               child: ElevatedButton(
-                                onPressed: () async {
+                                onPressed: _isSubmitting ? null : () async {
+                                  // keep camera permission check, then call backend submit
                                   var status = await Permission.camera.status;
                                   if (!mounted) return;
                                   if (status.isDenied) {
@@ -330,22 +411,29 @@ class _MainAppState extends State<MainApp> {
                                       MaterialPageRoute(
                                           builder: (context) => const CamAcc()),
                                     );
-                                  } else if (status.isGranted) {
-                                    Navigator.of(context).pushAndRemoveUntil(
-                                    MaterialPageRoute(builder: (context) => const Menu()),
-                                    (route) => false,
-                                  );
+                                    return;
                                   }
+                                  // permission granted -> submit to backend
+                                  await _submitSignIn();
                                 },
                                 style: ElevatedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(5.0),
                                   ),
                                 ),
-                                child: const Text('Sign In',
-                                    style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.white)),
+                                child: _isSubmitting
+                                    ? const SizedBox(
+                                        width: 16,
+                                        height: 16,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2,
+                                          color: Colors.white,
+                                        ),
+                                      )
+                                    : const Text('Sign In',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.white)),
                               ),
                             ),
                           ),
