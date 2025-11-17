@@ -14,21 +14,15 @@ const secureStorage = FlutterSecureStorage();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final cameras = await availableCameras();
-  final firstCamera = cameras.first;
-
   runApp(
-    MainApp(
-      camera: firstCamera,
-    ),
+    MainApp(),
   );
 }
 
 
 
 class MainApp extends StatefulWidget {
-  final CameraDescription camera;
-  const MainApp({super.key, required this.camera});
+  const MainApp({super.key,});
 
   @override
   State<MainApp> createState() => _MainAppState();
@@ -95,15 +89,15 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   Future<Widget> _buildHome() async {
     try {
       final token = await secureStorage.read(key: 'jwt_token');
-      if (token == null || token.isEmpty) return LoginScreen(camera: widget.camera);
+      if (token == null || token.isEmpty) return LoginScreen();
 
       final payload = _parseJwtPayload(token);
       final workerId = (payload['workerID'] ?? '').toString();
       final rememberMe = (payload['remember'] ?? '').toString();
 
-      if (workerId.isEmpty) return LoginScreen(camera: widget.camera);
+      if (workerId.isEmpty) return LoginScreen();
       if (!rememberMe.toLowerCase().contains('true')) {
-        return LoginScreen(camera: widget.camera);
+        return LoginScreen();
       }
 
       final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/login');
@@ -121,10 +115,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         }
         return const Menu();
       } else {
-        return LoginScreen(camera: widget.camera);
+        return LoginScreen();
       }
     } catch (_) {
-      return LoginScreen(camera: widget.camera);
+      return LoginScreen();
     }
   }
 
@@ -139,7 +133,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Scaffold(body: Center(child: CircularProgressIndicator()));
           }
-          return snapshot.data ?? LoginScreen(camera: widget.camera);
+          return snapshot.data ?? LoginScreen();
         },
       ),
     );
@@ -147,8 +141,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 }
 
 class LoginScreen extends StatefulWidget {
-  final CameraDescription camera;
-  const LoginScreen({super.key, required this.camera});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
