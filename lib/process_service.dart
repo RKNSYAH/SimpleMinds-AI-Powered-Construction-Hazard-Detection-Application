@@ -54,7 +54,7 @@ Float32List convertYUV420ToFloat32(
     }
   }
 
-  final rotated = img.copyRotate(img2, angle: 90);
+  final rotated = img.copyRotate(img2, angle: 0);
   final resized = img.copyResizeCropSquare(rotated, size: 640);
 
   final Float32List floatInput =

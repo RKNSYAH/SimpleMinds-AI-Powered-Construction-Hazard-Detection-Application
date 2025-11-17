@@ -7,12 +7,14 @@ import 'package:flutter/material.dart';
 import 'package:camera/camera.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
+const secureStorage = FlutterSecureStorage();
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   final cameras = await availableCameras();
-
   final firstCamera = cameras.first;
 
   runApp(
@@ -22,26 +24,7 @@ void main() async {
   );
 }
 
-typedef RoleEntry = DropdownMenuEntry<RoleLabel>;
 
-// DropdownMenuEntry labels and values for the first dropdown menu.
-enum RoleLabel {
-  engineer('Engineer'),
-  supervisor('Supervisor'),
-  safetyOfficer('Safety Officer');
-
-  const RoleLabel(this.label);
-  final String label;
-
-  static List<RoleEntry> get entries => UnmodifiableListView<RoleEntry>(
-        values.map<RoleEntry>(
-          (RoleLabel role) => RoleEntry(
-            value: role,
-            label: role.label,
-          ),
-        ),
-      );
-}
 
 class MainApp extends StatefulWidget {
   final CameraDescription camera;
@@ -51,64 +34,174 @@ class MainApp extends StatefulWidget {
   State<MainApp> createState() => _MainAppState();
 }
 
-class _MainAppState extends State<MainApp> {
-  RoleLabel selectedRole = RoleLabel.engineer;
-  bool rememberMe = false;
-
-  final TextEditingController fullNameController = TextEditingController();
-  final TextEditingController empIdController = TextEditingController();
-  final TextEditingController supervisorController = TextEditingController();
-  bool _isSubmitting = false;
+class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+    @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+
+    if (state == AppLifecycleState.detached || state == AppLifecycleState.inactive) {
+      _callLogoutApi();
+    }
+  }
+
+  Future<void> _callLogoutApi() async {
+    try {
+
+      final token = await secureStorage.read(key: 'jwt_token');
+      if (token == null || token.isEmpty) return;
+
+      final payload = _parseJwtPayload(token);
+      final workerId = (payload['workerID'] ?? '').toString();
+
+      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/logout');
+      await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({'workerID': workerId})
+      );
+
+      await secureStorage.delete(key: 'jwt_token');
+    } catch (e) {
+      debugPrint('Logout failed: $e');
+    }
+  }
+
+
+  // parse JWT payload
+  Map<String, dynamic> _parseJwtPayload(String token) {
+    final parts = token.split('.');
+    if (parts.length != 3) return {};
+    final payload = utf8.decode(base64Url.decode(base64Url.normalize(parts[1])));
+    return json.decode(payload) as Map<String, dynamic>;
+  }
+
+  // try to validate/refresh using workerID from saved JWT
+  Future<Widget> _buildHome() async {
+    try {
+      final token = await secureStorage.read(key: 'jwt_token');
+      if (token == null || token.isEmpty) return LoginScreen(camera: widget.camera);
+
+      final payload = _parseJwtPayload(token);
+      final workerId = (payload['workerID'] ?? '').toString();
+      final rememberMe = (payload['remember'] ?? '').toString();
+
+      if (workerId.isEmpty) return LoginScreen(camera: widget.camera);
+      if (!rememberMe.toLowerCase().contains('true')) {
+        return LoginScreen(camera: widget.camera);
+      }
+
+      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/login');
+      final resp = await http.post(
+        uri,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'workerID': workerId, 'remember': true}),
+      ).timeout(const Duration(seconds: 10));
+
+      if (resp.statusCode >= 200 && resp.statusCode < 300) {
+        final responseData = jsonDecode(resp.body);
+        final newJwt = responseData['token'] ?? responseData['jwt'] ?? '';
+        if (newJwt != null && newJwt.isNotEmpty) {
+          await secureStorage.write(key: 'jwt_token', value: newJwt);
+        }
+        return const Menu();
+      } else {
+        return LoginScreen(camera: widget.camera);
+      }
+    } catch (_) {
+      return LoginScreen(camera: widget.camera);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: buildTheme(),
+      home: FutureBuilder<Widget>(
+        future: _buildHome(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Scaffold(body: Center(child: CircularProgressIndicator()));
+          }
+          return snapshot.data ?? LoginScreen(camera: widget.camera);
+        },
+      ),
+    );
+  }
+}
+
+class LoginScreen extends StatefulWidget {
+  final CameraDescription camera;
+  const LoginScreen({super.key, required this.camera});
+
+  @override
+  State<LoginScreen> createState() => _LoginScreenState();
+}
+
+class _LoginScreenState extends State<LoginScreen> {
+  bool rememberMe = false;
+  final TextEditingController empIdController = TextEditingController();
+  bool _isSubmitting = false;
+
+  @override
   void dispose() {
-    fullNameController.dispose();
     empIdController.dispose();
-    supervisorController.dispose();
     super.dispose();
   }
 
   Future<void> _submitSignIn() async {
-    final fullName = fullNameController.text.trim();
     final employeeId = empIdController.text.trim();
-    final supervisorId = supervisorController.text.trim();
-    final role = selectedRole.label;
     final remember = rememberMe;
 
-    if (fullName.isEmpty || employeeId.isEmpty) {
+    if (employeeId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter name and employee ID')),
+        const SnackBar(content: Text('Please enter your employee ID')),
       );
       return;
     }
 
     final payload = {
-      'fullName': fullName,
-      'employeeId': employeeId,
-      'supervisorId': supervisorId,
-      'role': role,
+      'workerID': employeeId,
       'remember': remember,
     };
 
     setState(() => _isSubmitting = true);
 
     try {
-      final uri = Uri.parse('https://safemine-backend.netlify.app/api/');
+      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/login');
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
-      );
+      ).timeout(const Duration(seconds: 10));
 
       if (!mounted) return;
 
       if (resp.statusCode >= 200 && resp.statusCode < 300) {
-        // success - proceed to app
+        // parse response to extract JWT
+        final responseData = jsonDecode(resp.body);
+        final jwt = responseData['token'];
+
+        if (jwt.isNotEmpty) {
+          await secureStorage.write(key: 'jwt_token', value: jwt);
+        }
+
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (context) => const Menu()),
           (route) => false,
@@ -132,9 +225,8 @@ class _MainAppState extends State<MainApp> {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      theme: buildTheme(),
-      home: Scaffold(
+    return ScaffoldMessenger(
+      child: Scaffold(
         body: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
@@ -180,42 +272,6 @@ class _MainAppState extends State<MainApp> {
                       return Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Full Name',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: fieldWidth,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                boxShadow: const [
-                                  BoxShadow(
-                                      color: Color.fromARGB(
-                                          74, 199, 210, 255), // Shadow color
-                                      blurRadius: 4,
-                                      offset: Offset(0, 4)),
-                                ],
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: TextField( // removed const and added controller
-                                controller: fullNameController,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(
-                                      borderSide: BorderSide.none),
-                                  fillColor: Color.fromARGB(255, 243, 244, 246),
-                                  filled: true,
-                                  floatingLabelBehavior:
-                                      FloatingLabelBehavior.never,
-                                  hintText: 'Enter your full name',
-                                ),
-                              ),
-                            ),
-                          ),
                           const SizedBox(height: 28),
                           const Align(
                             alignment: Alignment.centerLeft,
@@ -239,7 +295,7 @@ class _MainAppState extends State<MainApp> {
                                 ],
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: TextField( // removed const and added controller
+                              child: TextField(
                                 controller: empIdController,
                                 decoration: const InputDecoration(
                                   border: OutlineInputBorder(
@@ -254,103 +310,7 @@ class _MainAppState extends State<MainApp> {
                               ),
                             ),
                           ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: fieldWidth,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                boxShadow: const [
-                                  BoxShadow(
-                                      color: Color.fromARGB(
-                                          74, 199, 210, 255),
-                                      blurRadius: 4,
-                                      offset: Offset(0, 4)),
-                                ],
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: TextField( // removed const and added controller
-                                controller: supervisorController,
-                                decoration: const InputDecoration(
-                                  border: OutlineInputBorder(
-                                      borderSide: BorderSide.none),
-                                  fillColor: Color.fromARGB(255, 243, 244, 246),
-                                  filled: true,
-                                  floatingLabelBehavior:
-                                      FloatingLabelBehavior.never,
-                                  hintText:
-                                      'Enter Supervisor ID',
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(height: 28),
-                          const Align(
-                            alignment: Alignment.centerLeft,
-                            child: Text(
-                              'Role',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 15),
-                            ),
-                          ),
-                          const SizedBox(height: 12),
-                          SizedBox(
-                            width: fieldWidth,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                boxShadow: const [
-                                  BoxShadow(
-                                    color: Color.fromARGB(74, 199, 210, 255),
-                                    blurRadius: 4,
-                                    offset: Offset(0, 4),
-                                  ),
-                                ],
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: DropdownMenu<RoleLabel>(
-                                width: fieldWidth,
-                                dropdownMenuEntries:
-                                    RoleLabel.entries.map((role) {
-                                  return DropdownMenuEntry<RoleLabel>(
-                                    value: role.value,
-                                    label: role.label,
-                                    style: ButtonStyle(
-                                      minimumSize: MaterialStatePropertyAll(
-                                          Size(fieldWidth, 40)),
-                                    ),
-                                  );
-                                }).toList(),
-                                menuStyle: const MenuStyle(
-                                  backgroundColor:
-                                      MaterialStatePropertyAll(Colors.white),
-                                  surfaceTintColor:
-                                      MaterialStatePropertyAll(Colors.white),
-                                  padding:
-                                      MaterialStatePropertyAll(EdgeInsets.zero),
-                                  elevation: MaterialStatePropertyAll(2),
-                                  shadowColor: MaterialStatePropertyAll(
-                                      Color.fromARGB(74, 199, 210, 255)),
-                                ),
-                                initialSelection: selectedRole,
-                                onSelected: (RoleLabel? value) {
-                                  if (value != null) {
-                                    setState(() {
-                                      selectedRole = value;
-                                    });
-                                  }
-                                },
-                                inputDecorationTheme:
-                                    const InputDecorationTheme(
-                                  border: OutlineInputBorder(
-                                      borderSide: BorderSide.none),
-                                  fillColor:
-                                      Color.fromARGB(255, 243, 244, 246),
-                                  filled: true,
-                                  floatingLabelBehavior:
-                                      FloatingLabelBehavior.never,
-                                ),
-                              ),
-                            ),
-                          ),
+
                           const SizedBox(height: 12),
                           Row(
                             children: [
@@ -403,19 +363,8 @@ class _MainAppState extends State<MainApp> {
                               ),
                               child: ElevatedButton(
                                 onPressed: _isSubmitting ? null : () async {
-                                  // keep camera permission check, then call backend submit
-                                  var status = await Permission.camera.status;
-                                  if (!mounted) return;
-                                  if (status.isDenied) {
-                                    Navigator.of(context).push(
-                                      MaterialPageRoute(
-                                          builder: (context) => const CamAcc()),
-                                    );
-                                    return;
-                                  }
-                                  // permission granted -> submit to backend
-                                  await _submitSignIn();
-                                },
+                                    await _submitSignIn();
+                                  },
                                 style: ElevatedButton.styleFrom(
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(5.0),
@@ -443,7 +392,7 @@ class _MainAppState extends State<MainApp> {
                     },
                   ),
                 ),
-                const SizedBox(height: 20), // small bottom padding
+                const SizedBox(height: 20),
               ],
             ),
           ),

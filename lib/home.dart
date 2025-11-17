@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
@@ -8,11 +10,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 import 'package:image/image.dart' as img;
 import 'dart:ui' as ui;
 import 'package:audioplayers/audioplayers.dart';
 import 'package:vibration/vibration.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class IsolateData {
   final List<Uint8List> planes;
@@ -140,26 +145,52 @@ class IncidentList extends StatelessWidget {
   }
 }
 
+class Location {
+  final String type;
+  final List<double> coordinates;
+
+  Location({
+    required this.type,
+    required this.coordinates,
+  });
+
+  Map<String, dynamic> toJson() => {
+        'type': type,
+        'coordinates': coordinates,
+      };
+}
+
 class DetectionLog {
   final String label;
   final DateTime timestamp;
   final double confidence;
+   final Location location;
 
   DetectionLog({
     required this.label,
     required this.timestamp,
     required this.confidence,
+     required this.location,
   });
+
+    Map<String, dynamic> toJson() => {
+        'label': label,
+        'confidence': confidence,
+        'timestamp': timestamp.toIso8601String(),
+        'location': location.toJson(),
+      };
+
 }
 
 class DetectionPainter extends CustomPainter {
   final List<String> labels = [
-    "crack",
-    "cracks",
-    "mold",
-    "peeling_paint",
-    "stairstep_crack",
-    "water_seepage",
+ "burned socket",
+ "damage wire",
+ "overloaded socket",
+ '0',
+ "black smoke",
+ "fire1",
+ "smoky fire",
   ];
   final List<List<double>> detections;
   final double scale; // scaling factor from 640 to screen size
@@ -231,6 +262,9 @@ class _MenuState extends State<Menu> {
   List<List<double>> _currentDetections = [];
   List<DetectionLog> _detectionLog = [];
 
+  final List<DetectionLog> _unsentDetections = [];
+  bool isSending = false;
+
   final TFLiteService _tfliteService = TFLiteService();
   bool _isModelLoaded = false;
 
@@ -238,94 +272,204 @@ class _MenuState extends State<Menu> {
   final Duration alertCooldown = const Duration(seconds: 5);
 
   final List<String> labels = [
-    "crack",
-    "cracks",
-    "mold",
-    "peeling_paint",
-    "stairstep_crack",
-    "water_seepage",
+ "burned socket",
+ "damage wire",
+ "overloaded socket",
+ '0',
+ "black smoke",
+ "fire1",
+ "smoky fire",
   ];
 
   @override
   void initState() {
+    
     super.initState();
-    loadModel();
     _setupCamera();
+    loadModel();
   }
 
   Future<String> loadModel() async {
+    final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        await Geolocator.requestPermission();
+      }
     String result = await _tfliteService.loadModel();
     if (result.contains("Model loaded")) {
       setState(() {
         _isModelLoaded = true;
       });
     }
-    print(result);
     return result;
   }
 
-  int lastInferenceTime = 0;
-  bool isProcessing = false;
+  Future<Location?> _getCurrentLocation() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        final result = await Geolocator.requestPermission();
+        if (result == LocationPermission.denied) return null;
+      }
+      if (permission == LocationPermission.deniedForever) return null;
+
+      final position = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.best,
+          distanceFilter: 0,
+        ),
+      );
+
+      return Location(
+        type: 'Point',
+        coordinates: [position.latitude, position.longitude],
+      );
+    } catch (e) {
+      print('Error getting location: $e');
+      return null;
+    }
+  }
+  final _secureStorage = const FlutterSecureStorage();
+  Future<void> sendDetections() async {
+    if(_unsentDetections.isEmpty) return;
+    if (isSending) return;
+    isSending = true;
+
+    final uri = Uri.parse('https://safemine-backend-production.up.railway.app/detection');
+
+  try {
+    final token = await _secureStorage.read(key: 'jwt_token');
+
+    final headers = <String, String>{
+      'Content-Type': 'application/json',
+      if (token != null && token.isNotEmpty) 'Authorization': 'Bearer $token',
+    };
+
+    final List<DetectionLog> logsToSend = List<DetectionLog>.from(_unsentDetections);
+
+    final body = jsonEncode({
+      'detections': logsToSend.map((log) => log.toJson()).toList(),
+    });
+
+    final resp = await http
+        .post(
+          uri,
+          headers: headers,
+          body: body,
+        )
+        .timeout(const Duration(seconds: 15)); // increase timeout if needed
+
+    if (resp.statusCode == 200) {
+      setState(() {
+        _unsentDetections.removeRange(0, logsToSend.length);
+      });
+    } else {
+      _unsentDetections.clear();
+    }
+  } on TimeoutException catch (e) {
+    print('Error sending detections: Timeout - $e');
+  } catch (e) {
+    print('Error sending detections: $e');
+  } finally {
+    isSending = false;
+  }
+  }
 
   Future<void> mapDetections(List<List<double>> newDetections) async {
     final currentTime = DateTime.now();
     List<DetectionLog> newLogs = [];
     try {
-        if (newDetections.isEmpty) {
-          print("No detections.");
-        } else {
-          for (var det in newDetections) {
-            if (det[4] > 0.25) {
-              int rawClass = det[5].toInt();
-              int cls = rawClass % labels.length;
-              String label = labels[cls];
-              double confidence = det[4];
+      if (newDetections.isEmpty) {
+        print("No detections.");
+      } else {
+        for (var det in newDetections) {
+          if (det[4] > 0.25) {
+            int rawClass = det[5].toInt();
+            int cls = rawClass % labels.length;
+            String label = labels[cls];
+            double confidence = det[4];
 
-              final DateTime? lastTime = _lastAlertTimes[label];
+            final DateTime? lastTime = _lastAlertTimes[label];
 
-              if(lastTime != null && currentTime.difference(lastTime) < alertCooldown) {
-                continue;
-              }
-              _lastAlertTimes[label] = currentTime;
-
-              newLogs.add(DetectionLog(
-                label: label,
-                timestamp: DateTime.now(),
-                confidence: confidence,
-              ));
-
-              final player = AudioPlayer();
-              player.play(AssetSource('sounds/alert.wav'));
-              Vibration.vibrate(duration: 500);
-
-              print(
-                "Detected $label (class $rawClass → mapped $cls) "
-                "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
-                "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
-              );
+            if (lastTime != null &&
+                currentTime.difference(lastTime) < alertCooldown) {
+              continue;
             }
+            _lastAlertTimes[label] = currentTime;
+
+            // Get current location
+            final location = await _getCurrentLocation();
+
+            final newLog = DetectionLog(
+              label: label,
+              timestamp: DateTime.now(),
+              confidence: confidence,
+              location: location!,
+            );
+            
+
+            newLogs.add(newLog);
+            _unsentDetections.add(newLog);
+
+            final player = AudioPlayer();
+            player.play(AssetSource('sounds/alert.wav'));
+            Vibration.vibrate(duration: 500);
+
+            sendDetections();
+
+            print(
+              "Detected $label (class $rawClass → mapped $cls) "
+              "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
+              "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]"
+              "${location != null ? ' | Location: ${location.coordinates}' : ''}",
+            );
           }
         }
+      }
 
-        setState(() {
-          _currentDetections = newDetections;
+      setState(() {
+        _currentDetections = newDetections;
 
-          if (newLogs.isNotEmpty) {
-            _detectionLog.insertAll(0, newLogs);
+        if (newLogs.isNotEmpty) {
+          _detectionLog.insertAll(0, newLogs);
 
-            if (_detectionLog.length > 50) {
-              _detectionLog = _detectionLog.sublist(0, 50);
-            }
+          if (_detectionLog.length > 50) {
+            _detectionLog = _detectionLog.sublist(0, 50);
           }
         }
-      );
+      });
+      if(newLogs.isNotEmpty){
+        unawaited(sendDetections());
+      }
     } catch (e) {
       print("Error mapping detections: $e");
     }
   }
 
+  Future<void> _setupCamera() async {
+    try {
+      final cameras = await availableCameras();
+      print("camera: $cameras");
+      if (cameras.isNotEmpty) {
+        _controller = CameraController(cameras.first, ResolutionPreset.max,
+            enableAudio: false);
+        _initializeControllerFuture = _controller!.initialize();
+        await _initializeControllerFuture;
+        _controller!.startImageStream((CameraImage image) {
+          if (_isModelLoaded) processCameraImage(image);
+        });
+        setState(() {});
+      }
+    } catch (e) {
+      // Handle camera error
+    }
+  }
+
+  int lastInferenceTime = 0;
+  bool isProcessing = false;
+
+
   Future<void> processCameraImage(CameraImage image) async {
-    const int throttleMs = 400;
+    const int throttleMs = 80;
     final int now = DateTime.now().millisecondsSinceEpoch;
     if (now - lastInferenceTime < throttleMs) return;
     if (isProcessing) return;
@@ -333,7 +477,6 @@ class _MenuState extends State<Menu> {
     isProcessing = true;
     lastInferenceTime = now;
 
-    print("camera running");
 
     try {
       final isolateData = IsolateData(
@@ -347,79 +490,6 @@ class _MenuState extends State<Menu> {
         640,
       );
 
-        final Float32List input =
-            await compute(_preprocessInIsolate, isolateData);
-
-      //   final List<List<double>>? output =
-      //       await _tfliteService.runInference(input.buffer);
-
-      //   if (output == null) {
-      //     print("Inference failed or returned null.");
-      //     return;
-      //   }
-
-      //   for (var box in output) {
-      //     print(box);
-      //   }
-
-      //   var newDetections = output.where((box) => box[4] > 0.25).toList();
-
-      //   List<DetectionLog> newLogs = [];
-
-      //   final currentTime = DateTime.now();
-
-      //   setState(() {
-      //     newDetections = output.where((box) => box[4] > 0.25).toList();
-      //   });
-
-      //   if (newDetections.isEmpty) {
-      //     print("No detections.");
-      //   } else {
-      //     for (var det in newDetections) {
-      //       if (det[4] > 0.25) {
-      //         int rawClass = det[5].toInt();
-      //         int cls = rawClass % labels.length;
-      //         String label = labels[cls];
-      //         double confidence = det[4];
-
-      //         final DateTime? lastTime = _lastAlertTimes[label];
-
-      //         if(lastTime != null && currentTime.difference(lastTime) < alertCooldown) {
-      //           continue;
-      //         }
-      //         _lastAlertTimes[label] = currentTime;
-
-      //         newLogs.add(DetectionLog(
-      //           label: label,
-      //           timestamp: DateTime.now(),
-      //           confidence: confidence,
-      //         ));
-
-      //         final player = AudioPlayer();
-      //         player.play(AssetSource('sounds/alert.wav'));
-      //         Vibration.vibrate(duration: 500);
-
-      //         print(
-      //           "Detected $label (class $rawClass → mapped $cls) "
-      //           "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
-      //           "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]",
-      //         );
-      //       }
-      //     }
-      //   }
-
-      //   setState(() {
-      //     _currentDetections = newDetections;
-
-      //     if (newLogs.isNotEmpty) {
-      //       _detectionLog.insertAll(0, newLogs);
-
-      //       if (_detectionLog.length > 50) {
-      //         _detectionLog = _detectionLog.sublist(0, 50);
-      //       }
-      //     }
-      //   }
-      // );
     } catch (e) {
       print("Error during processing: $e");
     } finally {
@@ -427,23 +497,7 @@ class _MenuState extends State<Menu> {
     }
   }
 
-  Future<void> _setupCamera() async {
-    try {
-      final cameras = await availableCameras();
-      if (cameras.isNotEmpty) {
-        _controller = CameraController(cameras.first, ResolutionPreset.medium,
-            enableAudio: false);
-        _initializeControllerFuture = _controller!.initialize();
-        await _initializeControllerFuture;
-        _controller!.startImageStream((CameraImage image) {
-          if (_isModelLoaded) processCameraImage(image);
-        });
-        setState(() {});
-      }
-    } catch (e) {
-      // Handle camera error
-    }
-  }
+
 
   @override
   void dispose() {

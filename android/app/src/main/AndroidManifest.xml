@@ -31,8 +31,13 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+        <uses-native-library
+        android:name="libcdsprpc.so"
+        android:required="false" />
     </application>
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.CAMERA"/>
     <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 </manifest>

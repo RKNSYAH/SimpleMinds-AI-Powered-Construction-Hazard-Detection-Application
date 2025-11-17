@@ -20,12 +20,13 @@ class TakePictureScreen extends StatefulWidget {
 
 class DetectionPainter extends CustomPainter {
   final List<String> labels = [
-    "crack",
-    "cracks",
-    "mold",
-    "peeling_paint",
-    "stairstep_crack",
-    "water_seepage",
+ "burned socket",
+ "damage wire",
+ "overloaded socket",
+ '0',
+ "black smoke",
+ "fire1",
+ "smoky fire",
   ];
   final List<List<double>> detections;
   final double scale; // scaling factor from 640 to screen size
@@ -94,6 +95,15 @@ class TakePictureScreenState extends State<TakePictureScreen> {
   // store detections for the painter: each detection is [x1,y1,x2,y2,score,class]
   List<List<double>> _detections = [];
 
+  Future<void> checkCamera() async {
+    final cameras = await availableCameras();
+
+    for (var i = 0; i < cameras.length; i++) {
+      final cam = cameras[i];
+      print('Camera $i: ${cam.name} (${cam.lensDirection}, ${cam.sensorOrientation}°)');
+    }
+  }
+
   @override
   void initState() {
     super.initState();
@@ -103,12 +113,13 @@ class TakePictureScreenState extends State<TakePictureScreen> {
       DeviceOrientation.landscapeRight,
     ]);
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+    
 
     _controller = CameraController(
       // Get a specific camera from the list of available cameras.
       widget.camera,
       // Define the resolution to use.
-      ResolutionPreset.veryHigh,
+      ResolutionPreset.max,
     );
 
     _initializeControllerFuture = _controller.initialize().then((_) {

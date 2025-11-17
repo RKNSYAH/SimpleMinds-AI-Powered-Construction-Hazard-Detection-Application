@@ -8,34 +8,6 @@ import java.io.ByteArrayOutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-object ImageUtils {
-
-    fun yuvToRgb(context: Context, yuvImage: ByteArray, width: Int, height: Int): Bitmap {
-        // Convert NV21 (YUV) to JPEG
-        val yuv = YuvImage(yuvImage, ImageFormat.NV21, width, height, null)
-        val out = ByteArrayOutputStream()
-        yuv.compressToJpeg(android.graphics.Rect(0, 0, width, height), 100, out)
-        val jpegBytes = out.toByteArray()
-
-        // Decode JPEG to RGB Bitmap
-        return android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
-    }
-
-    fun saveBitmapToJpeg(context: Context, bitmap: Bitmap, filename: String) {
-    try {
-        val file = java.io.File(context.getExternalFilesDir(null), "$filename.jpg")
-        val outputStream = java.io.FileOutputStream(file)
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, outputStream)
-        outputStream.flush()
-        outputStream.close()
-        android.util.Log.d("ImageUtils", "Saved image to: ${file.absolutePath}")
-    } catch (e: Exception) {
-        android.util.Log.e("ImageUtils", "Failed to save image: ${e.message}")
-    }
-}
-
-}
-
 fun Bitmap.toFloatByteBuffer(): ByteBuffer {
     val width = width
     val height = height
