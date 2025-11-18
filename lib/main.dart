@@ -162,6 +162,8 @@ class _LoginScreenState extends State<LoginScreen> {
     final employeeId = empIdController.text.trim();
     final remember = rememberMe;
 
+    print("1");
+
     if (employeeId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your employee ID')),
@@ -183,6 +185,8 @@ class _LoginScreenState extends State<LoginScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 10));
+
+      print(resp);
 
       if (!mounted) return;
 

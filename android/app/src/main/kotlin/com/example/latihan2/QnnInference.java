@@ -39,17 +39,12 @@ public final class QnnInference {
     // Private constructor so no one can instantiate this utility class
     private QnnInference() {}
 
-    /**
-     * This is the main entry point for your MainActivity.
-     * It uses the TFLiteHelpers logic to robustly create an interpreter.
-     */
     public static Interpreter createInterpreter(Context context, String modelAssetPath) {
         if (tfliteInterpreter != null) return tfliteInterpreter;
 
         MappedByteBuffer modelBuffer;
         String modelIdentifier;
         try {
-            // Step 1: Load model and get its hash (for caching)
             Pair<MappedByteBuffer, String> modelData = loadModelFile(context.getAssets(), modelAssetPath);
             modelBuffer = modelData.first;
             modelIdentifier = modelData.second;
@@ -58,33 +53,26 @@ public final class QnnInference {
             throw new RuntimeException(e);
         }
 
-        // Step 2: Define delegate priority
-        // Attempt 1: Try QNN_NPU.
-        // Attempt 2: If QNN fails, try GPUv2.
-        // Attempt 3: If both fail, use CPU (XNNPack).
         DelegateType[][] delegatePriorityOrder = new DelegateType[][]{
-                {DelegateType.QNN_NPU},
-                {DelegateType.GPUv2},
-                {} // Empty means CPU-only fallback
+            {DelegateType.QNN_NPU},
+            {DelegateType.GPUv2},
+            {},
         };
 
-        // Step 3: Get necessary paths
         String nativeLibraryDir = context.getApplicationInfo().nativeLibraryDir;
         String cacheDir = context.getCacheDir().getAbsolutePath();
 
         try {
-            // Step 4: Create interpreter using the robust helper logic
             Pair<Interpreter, Map<DelegateType, Delegate>> interpreterData =
                     CreateInterpreterAndDelegatesFromOptions(
                             modelBuffer,
                             delegatePriorityOrder,
-                            -1, // numCPUThreads (-1 lets TFLite decide)
+                            -1,
                             nativeLibraryDir,
                             cacheDir,
                             modelIdentifier
                     );
 
-            // Step 5: Save state
             tfliteInterpreter = interpreterData.first;
             delegatesMap = interpreterData.second;
 
@@ -115,11 +103,6 @@ public final class QnnInference {
             delegatesMap = null;
         }
     }
-
-    // ===================================================================================
-    // ALL METHODS BELOW ARE COPIED FROM TFLiteHelpers.java
-    // They are now private helpers within this class.
-    // ===================================================================================
 
     private enum DelegateType {
         GPUv2,
@@ -184,7 +167,7 @@ public final class QnnInference {
         Interpreter.Options tfLiteOptions = new Interpreter.Options();
         tfLiteOptions.setRuntime(Interpreter.Options.TfLiteRuntime.FROM_APPLICATION_ONLY);
         tfLiteOptions.setAllowBufferHandleOutput(true);
-        tfLiteOptions.setUseNNAPI(false); // Disable NNAPI in favor of QNN
+        tfLiteOptions.setUseNNAPI(false);
         tfLiteOptions.setNumThreads(numCPUThreads);
         tfLiteOptions.setUseXNNPACK(true); // Fall back to XNNPack (fast CPU)
 
@@ -215,12 +198,9 @@ public final class QnnInference {
 
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, startOffset, declaredLength);
 
-            // Compute the hash
             MessageDigest hashDigest = MessageDigest.getInstance("MD5");
-            // Reset stream to startOffset to read for hashing
             fileChannel.position(startOffset);
             
-            // Create a new FileInputStream for the DigestInputStream that respects the startOffset
             try (FileInputStream hashInputStream = new FileInputStream(fileDescriptor.getFileDescriptor())) {
                 hashInputStream.skip(startOffset);
                 try (DigestInputStream dis = new DigestInputStream(hashInputStream, hashDigest)) {
@@ -254,10 +234,7 @@ public final class QnnInference {
         throw new RuntimeException("Delegate creation not implemented for type: " + delegateType.name());
     }
 
-    /**
-     * This is the CORE logic you were missing.
-     * It correctly checks for HTP/DSP and configures the QNN delegate.
-     */
+
     private static Delegate CreateQNN_NPUDelegate(String nativeLibraryDir, String cacheDir, String modelIdentifier) {
         QnnDelegate.Options qnnOptions = new QnnDelegate.Options();
         qnnOptions.setSkelLibraryDir(nativeLibraryDir);

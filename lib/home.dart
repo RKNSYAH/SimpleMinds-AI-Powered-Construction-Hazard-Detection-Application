@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
@@ -285,9 +286,18 @@ class _MenuState extends State<Menu> {
   void initState() {
     
     super.initState();
-    _setupCamera();
-    loadModel();
+    _initAsync();
+    
   }
+
+  Future<void> _initAsync() async {
+  _setupCamera();
+  await loadModel();
+
+  await inferWithImage();
+
+
+}
 
   Future<String> loadModel() async {
     final permission = await Geolocator.checkPermission();
@@ -302,6 +312,43 @@ class _MenuState extends State<Menu> {
     }
     return result;
   }
+
+Future inferWithImage() async {
+  try {
+    final ByteData data = await rootBundle.load('assets/images/2.jpg');
+    final bytes = data.buffer;
+
+    await _tfliteService.runInference(bytes);
+
+    List<double> times = [];
+
+    for (int i = 0; i < 10; i++) {
+      final stopwatch = Stopwatch()..start();
+      
+      await _tfliteService.runInference(bytes);
+
+      stopwatch.stop();
+      final t = stopwatch.elapsedMicroseconds / 1000.0; // ms
+      times.add(t);
+
+      print("Run ${i + 1}: ${t.toStringAsFixed(3)} ms");
+    }
+
+    double avg = times.reduce((a, b) => a + b) / times.length;
+    double minTime = times.reduce((a, b) => a < b ? a : b);
+    double maxTime = times.reduce((a, b) => a > b ? a : b);
+
+    print("------ Results ------");
+    print("Average: ${avg.toStringAsFixed(3)} ms");
+    print("Min    : ${minTime.toStringAsFixed(3)} ms");
+    print("Max    : ${maxTime.toStringAsFixed(3)} ms");
+    print("---------------------");
+
+  } catch (err) {
+    print(err);
+  }
+}
+
 
   Future<Location?> _getCurrentLocation() async {
     try {
