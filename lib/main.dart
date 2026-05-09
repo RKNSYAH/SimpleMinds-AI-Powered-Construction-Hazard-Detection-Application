@@ -60,7 +60,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
       final payload = _parseJwtPayload(token);
       final workerId = (payload['workerID'] ?? '').toString();
 
-      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/logout');
+      final uri = Uri.parse('https://zonal-presence-production.up.railway.app/worker/logout');
       await http.post(
         uri,
         headers: {
@@ -100,7 +100,7 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
         return LoginScreen();
       }
 
-      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/login');
+      final uri = Uri.parse('safemine-backend-production-24aa.up.railway.app/worker/login');
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},
@@ -179,7 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isSubmitting = true);
 
     try {
-      final uri = Uri.parse('https://safemine-backend-production.up.railway.app/worker/login');
+      final uri = Uri.parse('https://zonal-presence-production.up.railway.app/worker/login');
       final resp = await http.post(
         uri,
         headers: {'Content-Type': 'application/json'},

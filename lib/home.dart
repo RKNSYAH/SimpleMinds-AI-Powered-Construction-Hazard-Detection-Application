@@ -381,7 +381,7 @@ Future inferWithImage() async {
     if (isSending) return;
     isSending = true;
 
-    final uri = Uri.parse('https://safemine-backend-production.up.railway.app/detection');
+    final uri = Uri.parse('https://zonal-presence-production.up.railway.app/detection');
 
   try {
     final token = await _secureStorage.read(key: 'jwt_token');
