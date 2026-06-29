@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'package:ericsson/app_config.dart';
 import 'package:ericsson/camacc.dart';
 import 'package:ericsson/home.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -53,6 +54,9 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
 
   Future<void> _callLogoutApi() async {
     try {
+      if (!await AppConfig.isBackendEnabled()) {
+        return;
+      }
 
       final token = await secureStorage.read(key: 'jwt_token');
       if (token == null || token.isEmpty) return;
@@ -88,6 +92,10 @@ class _MainAppState extends State<MainApp> with WidgetsBindingObserver {
   // try to validate/refresh using workerID from saved JWT
   Future<Widget> _buildHome() async {
     try {
+      if (!await AppConfig.isBackendEnabled()) {
+        return LoginScreen();
+      }
+
       final token = await secureStorage.read(key: 'jwt_token');
       if (token == null || token.isEmpty) return LoginScreen();
 
@@ -149,8 +157,30 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   bool rememberMe = false;
+  bool _useBackend = false;
   final TextEditingController empIdController = TextEditingController();
   bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadBackendMode();
+  }
+
+  Future<void> _loadBackendMode() async {
+    final enabled = await AppConfig.isBackendEnabled();
+    if (!mounted) return;
+    setState(() {
+      _useBackend = enabled;
+    });
+  }
+
+  Future<void> _setBackendMode(bool enabled) async {
+    setState(() {
+      _useBackend = enabled;
+    });
+    await AppConfig.setBackendEnabled(enabled);
+  }
 
   @override
   void dispose() {
@@ -162,11 +192,17 @@ class _LoginScreenState extends State<LoginScreen> {
     final employeeId = empIdController.text.trim();
     final remember = rememberMe;
 
-    print("1");
-
-    if (employeeId.isEmpty) {
+    if (_useBackend && employeeId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please enter your employee ID')),
+      );
+      return;
+    }
+
+    if (!_useBackend) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => const Menu()),
+        (route) => false,
       );
       return;
     }
@@ -185,8 +221,6 @@ class _LoginScreenState extends State<LoginScreen> {
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode(payload),
       ).timeout(const Duration(seconds: 10));
-
-      print(resp);
 
       if (!mounted) return;
 
@@ -260,6 +294,28 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ),
                 ),
+                if (AppConfig.allowsBackendBypass)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 9),
+                    child: SwitchListTile.adaptive(
+                      contentPadding: EdgeInsets.zero,
+                      title: const Text(
+                        'Backend sync',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      subtitle: Text(
+                        _useBackend
+                            ? 'Use the API for login, logout, and uploads.'
+                            : 'Bypass backend calls and stay fully local.',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      value: _useBackend,
+                      onChanged: _setBackendMode,
+                    ),
+                  ),
                 // main form
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 9),
@@ -376,10 +432,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                           color: Colors.white,
                                         ),
                                       )
-                                    : const Text('Sign In',
-                                        style: TextStyle(
+                                    : Text(
+                                        _useBackend
+                                            ? 'Sign In'
+                                            : 'Continue Offline',
+                                        style: const TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.white)),
+                                            color: Colors.white),
+                                      ),
                               ),
                             ),
                           ),

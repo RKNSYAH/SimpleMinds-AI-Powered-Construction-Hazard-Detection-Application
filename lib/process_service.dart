@@ -126,9 +126,10 @@ class ProcessService {
 
         if (output == null) {
           print("Inference failed or returned null.");
+          return null;
         }
 
-        var newDetections = output!.where((box) => box[4] > 0.25).toList();
+        var newDetections = output.where((box) => box[4] > 0.25).toList();
 
         return newDetections;
       

@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:ui';
 
 import 'package:camera/camera.dart';
+import 'package:ericsson/app_config.dart';
 import 'package:ericsson/camera.dart';
 import 'package:ericsson/tflite_service.dart';
 import 'package:ericsson/theme.dart';
@@ -92,6 +93,32 @@ Float32List convertYUV420ToFloat32(
       }
     }
   }
+  return floatInput;
+}
+
+Float32List convertImageToFloat32(img.Image sourceImage, int targetWidth, int targetHeight) {
+  final resized = img.copyResizeCropSquare(sourceImage, size: targetWidth);
+
+  final Float32List floatInput = Float32List(1 * 3 * targetHeight * targetWidth);
+  int index = 0;
+
+  for (int c = 0; c < 3; c++) {
+    for (int y = 0; y < targetHeight; y++) {
+      for (int x = 0; x < targetWidth; x++) {
+        final pixel = resized.getPixel(x, y);
+        double value;
+        if (c == 0) {
+          value = pixel.r / 255.0;
+        } else if (c == 1) {
+          value = pixel.g / 255.0;
+        } else {
+          value = pixel.b / 255.0;
+        }
+        floatInput[index++] = value;
+      }
+    }
+  }
+
   return floatInput;
 }
 
@@ -316,23 +343,67 @@ class _MenuState extends State<Menu> {
 Future inferWithImage() async {
   try {
     final ByteData data = await rootBundle.load('assets/images/2.jpg');
-    final bytes = data.buffer;
+    final bytes = data.buffer.asUint8List();
+    final decodedImage = img.decodeImage(bytes);
 
-    await _tfliteService.runInference(bytes);
+    if (decodedImage == null) {
+      print('Failed to decode sample image.');
+      return;
+    }
+
+    final Float32List input = convertImageToFloat32(decodedImage, 640, 640);
+    final inputBuffer = input.buffer;
 
     List<double> times = [];
+    List<List<double>>? detections;
+    double strongestConfidence = 0.0;
 
     for (int i = 0; i < 10; i++) {
       final stopwatch = Stopwatch()..start();
       
-      await _tfliteService.runInference(bytes);
+      detections = await _tfliteService.runInference(inputBuffer);
 
       stopwatch.stop();
       final t = stopwatch.elapsedMicroseconds / 1000.0; // ms
       times.add(t);
 
       print("Run ${i + 1}: ${t.toStringAsFixed(3)} ms");
+
+      final runDetections = (detections ?? [])
+          .where((det) => det.length >= 6)
+          .toList();
+
+      if (runDetections.isNotEmpty) {
+        final topScore = runDetections
+            .map((det) => det[4])
+            .reduce((a, b) => a > b ? a : b);
+        strongestConfidence = topScore > strongestConfidence
+            ? topScore
+            : strongestConfidence;
+
+        final bestDetection = runDetections.reduce(
+          (a, b) => a[4] > b[4] ? a : b,
+        );
+        final classIndex = bestDetection[5].toInt() % labels.length;
+        print(
+          "Run ${i + 1} best: ${labels[classIndex]} "
+          "(${(bestDetection[4] * 100).toStringAsFixed(1)}%) "
+          "box=${bestDetection.sublist(0, 4)}",
+        );
+      }
     }
+
+    final detectedResults = (detections ?? [])
+        .where((det) => det.length >= 6 && det[4] > 0.25)
+        .map((det) {
+      final classIndex = det[5].toInt() % labels.length;
+      final label = labels[classIndex];
+      return {
+        'label': label,
+        'confidence': det[4],
+        'box': [det[0], det[1], det[2], det[3]],
+      };
+    }).toList();
 
     double avg = times.reduce((a, b) => a + b) / times.length;
     double minTime = times.reduce((a, b) => a < b ? a : b);
@@ -342,6 +413,19 @@ Future inferWithImage() async {
     print("Average: ${avg.toStringAsFixed(3)} ms");
     print("Min    : ${minTime.toStringAsFixed(3)} ms");
     print("Max    : ${maxTime.toStringAsFixed(3)} ms");
+    print("Strongest confidence seen: ${(strongestConfidence * 100).toStringAsFixed(1)}%");
+    if (detectedResults.isEmpty) {
+      print("Detected result: none");
+    } else {
+      print("Detected result(s):");
+      for (final result in detectedResults) {
+        print(
+          "- ${result['label']} "
+          "(${((result['confidence'] as double) * 100).toStringAsFixed(1)}%) "
+          "box=${result['box']}",
+        );
+      }
+    }
     print("---------------------");
 
   } catch (err) {
@@ -380,6 +464,12 @@ Future inferWithImage() async {
     if(_unsentDetections.isEmpty) return;
     if (isSending) return;
     isSending = true;
+
+    if (!await AppConfig.isBackendEnabled()) {
+      _unsentDetections.clear();
+      isSending = false;
+      return;
+    }
 
     final uri = Uri.parse('https://zonal-presence-production.up.railway.app/detection');
 
@@ -445,12 +535,16 @@ Future inferWithImage() async {
 
             // Get current location
             final location = await _getCurrentLocation();
+            if (location == null) {
+              print('Skipping detection log because location is unavailable.');
+              continue;
+            }
 
             final newLog = DetectionLog(
               label: label,
               timestamp: DateTime.now(),
               confidence: confidence,
-              location: location!,
+              location: location,
             );
             
 
@@ -467,7 +561,7 @@ Future inferWithImage() async {
               "Detected $label (class $rawClass → mapped $cls) "
               "with confidence ${(det[4] * 100).toStringAsFixed(1)}% "
               "at [x1:${det[0]}, y1:${det[1]}, x2:${det[2]}, y2:${det[3]}]"
-              "${location != null ? ' | Location: ${location.coordinates}' : ''}",
+              " | Location: ${location.coordinates}",
             );
           }
         }

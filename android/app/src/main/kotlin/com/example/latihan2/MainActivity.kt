@@ -112,9 +112,15 @@ class MainActivity : FlutterActivity() {
                 }
                 
                 val inputBytes = call.argument<ByteArray>("bytes")
+                if (inputBytes == null) {
+                    result.error("INFERENCE_ERROR", "Input bytes are missing.", null)
+                    return@setMethodCallHandler
+                }
+
                 val inputBuffer = ByteBuffer.allocateDirect(1 * 3 * 640 * 640 * 4)
                 inputBuffer.order(ByteOrder.nativeOrder())
                 inputBuffer.put(inputBytes)
+                inputBuffer.rewind()
 
     //             if (inputBytes != null) {
     //     // Save the image to check strictly what the model sees
